@@ -229,27 +229,6 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- Update player nationalities from recently inserted matches\nUPDATE players \nSET nationality = match_data.nationality\nFROM (\n  SELECT \n    player1 as player_name, \n    player1_nationality as nationality\n  FROM matches \n  WHERE match_date = CURRENT_DATE - INTERVAL '1 day'\n    AND player1_nationality IS NOT NULL \n    AND player1_nationality != ''\n  \n  UNION ALL\n  \n  SELECT \n    player2 as player_name, \n    player2_nationality as nationality\n  FROM matches \n  WHERE match_date = CURRENT_DATE - INTERVAL '1 day'\n    AND player2_nationality IS NOT NULL \n    AND player2_nationality != ''\n) match_data\nWHERE players.player_name = match_data.player_name\n  AND (players.nationality IS NULL OR players.nationality = '' OR players.nationality != match_data.nationality);",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.6,
-      "position": [
-        -800,
-        288
-      ],
-      "id": "update-player-nationalities",
-      "name": "Update Player Nationalities",
-      "credentials": {
-        "postgres": {
-          "id": "DdZZnEL2dpMFGOf4",
-          "name": "Postgres account tennis"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
         "query": "WITH stats AS (\n  SELECT\n    COUNT(*) as total_preds,\n    SUM(CASE WHEN prediction_correct = true THEN 1 ELSE 0 END) as correct_preds,\n    SUM(CASE WHEN prediction_correct = false THEN 1 ELSE 0 END) as incorrect_preds,\n    AVG(CASE WHEN prediction_correct = true THEN confidence_score ELSE NULL END) as avg_conf_correct,\n    AVG(CASE WHEN prediction_correct = false THEN confidence_score ELSE NULL END) as avg_conf_incorrect,\n    COUNT(CASE WHEN confidence_score >= 60 AND prediction_correct = true THEN 1 END) as high_conf_correct,\n    COUNT(CASE WHEN confidence_score >= 60 THEN 1 END) as high_conf_total,\n    COUNT(CASE WHEN confidence_score >= 50 AND confidence_score < 60 AND prediction_correct = true THEN 1 END) as med_conf_correct,\n    COUNT(CASE WHEN confidence_score >= 50 AND confidence_score < 60 THEN 1 END) as med_conf_total,\n    COUNT(CASE WHEN confidence_score < 50 AND prediction_correct = true THEN 1 END) as low_conf_correct,\n    COUNT(CASE WHEN confidence_score < 50 THEN 1 END) as low_conf_total\n  FROM predictions\n  WHERE actual_winner IS NOT NULL\n),\npinecone_count AS (\n  SELECT COUNT(*) as total FROM matches\n)\nUPDATE system_metadata\nSET\n  days_operated = days_operated + 1,\n  total_matches_processed = (SELECT COUNT(*) FROM matches),\n  total_predictions_made = (SELECT total_preds FROM stats),\n  correct_predictions = (SELECT correct_preds FROM stats),\n  incorrect_predictions = (SELECT incorrect_preds FROM stats),\n  overall_accuracy = ROUND((SELECT correct_preds::numeric / NULLIF(total_preds, 0) * 100 FROM stats), 2),\n  avg_confidence_when_correct = ROUND((SELECT avg_conf_correct FROM stats), 2),\n  avg_confidence_when_incorrect = ROUND((SELECT avg_conf_incorrect FROM stats), 2),\n  accuracy_high_confidence = ROUND((SELECT high_conf_correct::numeric / NULLIF(high_conf_total, 0) * 100 FROM stats), 2),\n  accuracy_medium_confidence = ROUND((SELECT med_conf_correct::numeric / NULLIF(med_conf_total, 0) * 100 FROM stats), 2),\n  accuracy_low_confidence = ROUND((SELECT low_conf_correct::numeric / NULLIF(low_conf_total, 0) * 100 FROM stats), 2),\n  pinecone_record_count = (SELECT total FROM pinecone_count),\n  learning_phase = CASE\n    WHEN days_operated + 1 < 8 THEN 'phase1_data_collection'\n    WHEN days_operated + 1 < 22 THEN 'phase2_pattern_recognition'\n    ELSE 'phase3_mature_system'\n  END,\n  last_update = NOW(),\n  last_result_date = CURRENT_DATE\nWHERE id = 1\nRETURNING days_operated, learning_phase, overall_accuracy, pinecone_record_count;",
         "options": {}
       },
