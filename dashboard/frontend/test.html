@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tennis Predictions API Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #fff;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+        .success {
+            background: rgba(0, 255, 0, 0.2);
+            border: 1px solid #4CAF50;
+            color: #c8e6c9;
+        }
+        .error {
+            background: rgba(255, 0, 0, 0.2);
+            border: 1px solid #f44336;
+            color: #ffcdd2;
+        }
+        .loading {
+            background: rgba(255, 165, 0, 0.2);
+            border: 1px solid #ff9800;
+            color: #ffe0b2;
+            text-align: center;
+        }
+        .prediction {
+            background: rgba(255, 255, 255, 0.1);
+            margin: 15px 0;
+            padding: 20px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .tournament {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #fff;
+        }
+        .match {
+            margin-bottom: 10px;
+            color: #e8f5e8;
+        }
+        .prediction-info {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            font-size: 14px;
+            color: #b8e6b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎾 Tennis Predictions Dashboard</h1>
+        <div id="status" class="status loading">🔄 Loading predictions...</div>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        console.log('🚀 Starting Tennis Predictions Dashboard...');
+        
+        async function loadPredictions() {
+            const statusDiv = document.getElementById('status');
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                console.log('📡 Making API call to backend...');
+                statusDiv.innerHTML = '🔄 Loading predictions from API...';
+                
+                const response = await fetch('http://localhost:3001/api/predictions?page=1&pageSize=5', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                console.log('📋 Response status:', response.status, response.statusText);
+                console.log('📋 Response headers:', response.headers);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('✅ Data received:', data);
+                
+                const totalPredictions = data.meta?.total || 0;
+                const predictions = data.data || [];
+                
+                statusDiv.innerHTML = `✅ Successfully loaded ${totalPredictions.toLocaleString()} total predictions! Showing ${predictions.length} sample predictions.`;
+                statusDiv.className = 'status success';
+                
+                if (predictions.length > 0) {
+                    let html = '<h2 style="margin-top: 30px;">📊 Sample Predictions:</h2>';
+                    
+                    predictions.forEach((prediction, index) => {
+                        html += `
+                            <div class="prediction">
+                                <div class="tournament">🏆 ${prediction.tournament}</div>
+                                <div class="match">🎾 ${prediction.player1} vs ${prediction.player2}</div>
+                                <div class="match">🎯 Predicted Winner: <strong>${prediction.predicted_winner}</strong></div>
+                                <div class="prediction-info">
+                                    <span>📈 Confidence: <strong>${prediction.confidence_score}%</strong></span>
+                                    <span>💡 Recommended: <strong>${prediction.recommended_action}</strong></span>
+                                    <span>🏟️ Surface: <strong>${prediction.surface}</strong></span>
+                                    <span>📅 Date: <strong>${new Date(prediction.prediction_day).toLocaleDateString()}</strong></span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    resultsDiv.innerHTML = html;
+                } else {
+                    resultsDiv.innerHTML = '<div class="status error">❌ No predictions found in response</div>';
+                }
+                
+            } catch (error) {
+                console.error('❌ Error loading predictions:', error);
+                statusDiv.innerHTML = `❌ Error: ${error.message}`;
+                statusDiv.className = 'status error';
+                
+                resultsDiv.innerHTML = `
+                    <div style="margin-top: 20px; padding: 20px; background: rgba(255, 255, 255, 0.1); border-radius: 10px;">
+                        <h3>🔍 Debug Information:</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <p><strong>API URL:</strong> http://localhost:3001/api/predictions</p>
+                        <p><strong>Time:</strong> ${new Date().toLocaleTimeString()}</p>
+                        <p><strong>User Agent:</strong> ${navigator.userAgent}</p>
+                        <p><strong>Current Page:</strong> ${window.location.href}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Load predictions when page loads
+        loadPredictions();
+    </script>
+</body>
+</html>

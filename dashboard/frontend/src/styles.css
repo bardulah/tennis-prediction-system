@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.glass-panel {
+  background: rgba(15, 23, 42, 0.65);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.uiverse-switch {
+  position: relative;
+  width: 62px;
+  height: 32px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(34, 211, 166, 0.35), rgba(124, 58, 237, 0.35));
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  transition: background 0.3s ease;
+}
+
+.uiverse-switch input {
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+}
+
+.uiverse-switch-ball {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 30%, #f8fafc, #cbd5f5 65%, #94a3b8);
+  box-shadow: 0 6px 12px rgba(148, 163, 184, 0.45);
+  transition: transform 0.25s ease;
+}
+
+.uiverse-switch input:checked + .uiverse-switch-ball {
+  transform: translateX(30px);
+}
+
+.uiverse-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, rgba(34, 211, 166, 0.25), rgba(124, 58, 237, 0.25));
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.uiverse-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0.75rem 1.5rem;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #22d3a6, #7c3aed);
+  color: #0f172a;
+  font-weight: 600;
+  transition: transform 0.25s ease;
+}
+
+.uiverse-button::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(248, 250, 252, 0.2);
+  transform: translate(-100%, 0);
+  transition: transform 0.45s ease;
+}
+
+.uiverse-button:hover {
+  transform: translateY(-2px) scale(1.01);
+}
+
+.uiverse-button:hover::after {
+  transform: translate(0, 0);
+}

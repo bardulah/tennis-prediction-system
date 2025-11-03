@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .error { color: red; background: #ffe6e6; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { color: green; background: #e6ffe6; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .prediction { border: 1px solid #ddd; padding: 10px; margin: 10px 0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Tennis Predictions API Test</h1>
+    <div id="status">Loading...</div>
+    <div id="results"></div>
+
+    <script>
+        const API_URL = 'http://localhost:3001';
+        
+        async function testAPI() {
+            const statusDiv = document.getElementById('status');
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                statusDiv.innerHTML = 'Making API call...';
+                
+                const response = await fetch(`${API_URL}/api/predictions?page=1&pageSize=5`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                statusDiv.innerHTML = `<div class="success">✅ Success! Loaded ${data.meta?.total || 0} predictions</div>`;
+                
+                if (data.data && data.data.length > 0) {
+                    let html = '<h3>Sample Predictions:</h3>';
+                    data.data.forEach((pred, index) => {
+                        html += `
+                            <div class="prediction">
+                                <strong>${pred.tournament}</strong><br>
+                                ${pred.player1} vs ${pred.player2}<br>
+                                Predicted: <strong>${pred.predicted_winner}</strong><br>
+                                Confidence: ${pred.confidence_score}%<br>
+                                Recommended: ${pred.recommended_action}
+                            </div>
+                        `;
+                    });
+                    resultsDiv.innerHTML = html;
+                } else {
+                    resultsDiv.innerHTML = '<div class="error">No predictions found</div>';
+                }
+                
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+                console.error('Full error:', error);
+            }
+        }
+        
+        testAPI();
+    </script>
+</body>
+</html>
