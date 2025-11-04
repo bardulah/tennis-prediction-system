@@ -96,6 +96,7 @@ func main() {
 
     srv := &server{db: pool}
     r.Get("/api/predictions", srv.handleListPredictions)
+    r.Get("/api/filters", srv.handleGetFilters)
     r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
         w.WriteHeader(http.StatusOK)
         _, _ = w.Write([]byte("ok"))
@@ -205,6 +206,79 @@ func (s *server) fetchTotal(ctx context.Context, query string, args []any) (int,
         return 0, err
     }
     return total, nil
+}
+
+type filtersResponse struct {
+    Tournaments    []string `json:"tournaments"`
+    Surfaces       []string `json:"surfaces"`
+    LearningPhases []string `json:"learning_phases"`
+}
+
+func (s *server) handleGetFilters(w http.ResponseWriter, r *http.Request) {
+    ctx := r.Context()
+
+    // Get unique tournaments
+    tournamentsQuery := `SELECT DISTINCT tournament FROM predictions WHERE tournament IS NOT NULL AND tournament != '' ORDER BY tournament`
+    tournamentRows, err := s.db.Query(ctx, tournamentsQuery)
+    if err != nil {
+        httpError(w, err, http.StatusInternalServerError)
+        return
+    }
+    defer tournamentRows.Close()
+
+    var tournaments []string
+    for tournamentRows.Next() {
+        var tournament string
+        if err := tournamentRows.Scan(&tournament); err != nil {
+            httpError(w, err, http.StatusInternalServerError)
+            return
+        }
+        tournaments = append(tournaments, tournament)
+    }
+
+    // Get unique surfaces
+    surfacesQuery := `SELECT DISTINCT surface FROM predictions WHERE surface IS NOT NULL AND surface != '' ORDER BY surface`
+    surfaceRows, err := s.db.Query(ctx, surfacesQuery)
+    if err != nil {
+        httpError(w, err, http.StatusInternalServerError)
+        return
+    }
+    defer surfaceRows.Close()
+
+    var surfaces []string
+    for surfaceRows.Next() {
+        var surface string
+        if err := surfaceRows.Scan(&surface); err != nil {
+            httpError(w, err, http.StatusInternalServerError)
+            return
+        }
+        surfaces = append(surfaces, surface)
+    }
+
+    // Get unique learning phases
+    phasesQuery := `SELECT DISTINCT learning_phase FROM predictions WHERE learning_phase IS NOT NULL AND learning_phase != '' ORDER BY learning_phase`
+    phaseRows, err := s.db.Query(ctx, phasesQuery)
+    if err != nil {
+        httpError(w, err, http.StatusInternalServerError)
+        return
+    }
+    defer phaseRows.Close()
+
+    var phases []string
+    for phaseRows.Next() {
+        var phase string
+        if err := phaseRows.Scan(&phase); err != nil {
+            httpError(w, err, http.StatusInternalServerError)
+            return
+        }
+        phases = append(phases, phase)
+    }
+
+    respondJSON(w, filtersResponse{
+        Tournaments:    tournaments,
+        Surfaces:       surfaces,
+        LearningPhases: phases,
+    })
 }
 
 type filterSet struct {

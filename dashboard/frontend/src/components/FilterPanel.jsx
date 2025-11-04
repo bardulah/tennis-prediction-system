@@ -1,26 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
+import axios from 'axios'
 
-const surfaces = ['', 'Hard', 'Clay', 'Grass', 'Carpet']
-const tournaments = [
-  '',
-  'Chennai (India), hard',
-  'Paris (France), hard (indoor)',
-  'Monastir (Tunisia), hard',
-  'Hong Kong (Hong Kong), hard',
-  'Seoul (South Korea), hard',
-  'Jiujiang (China), hard',
-  'Bratislava 2 (Slovakia), hard (indoor)',
-  'Charlottesville (USA), hard (indoor)',
-  'Cali (Colombia), clay',
-  'Lima 2 (Peru), clay',
-  'M15 Heraklion 12 (Greece), hard',
-  'M15 Hua Hin 2 (Thailand), hard',
-  'M15 Bol 2 (Croatia), clay',
-  'W15 Bol 2 (Croatia), clay'
-]
 const actions = ['', 'bet', 'monitor', 'skip']
-const learningPhases = ['', 'phase1_data_collection', 'phase2_pattern_recognition', 'phase3_mature_system']
 const sortOptions = [
   { value: 'prediction_day', label: 'Prediction Date' },
   { value: 'created_at', label: 'Created At' },
@@ -29,6 +11,38 @@ const sortOptions = [
 ]
 
 export default function FilterPanel({ filters, onChange, loading }) {
+  const [filterOptions, setFilterOptions] = useState({
+    tournaments: [''],
+    surfaces: [''],
+    learningPhases: ['']
+  })
+  const [loadingOptions, setLoadingOptions] = useState(true)
+
+  useEffect(() => {
+    const fetchFilterOptions = async () => {
+      try {
+        const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://193.24.209.9:3001'
+        const { data } = await axios.get(`${baseURL}/api/filters`)
+        setFilterOptions({
+          tournaments: ['', ...(data.tournaments || [])],
+          surfaces: ['', ...(data.surfaces || [])],
+          learningPhases: ['', ...(data.learning_phases || [])]
+        })
+      } catch (error) {
+        console.error('Failed to fetch filter options:', error)
+        // Fallback to minimal options on error
+        setFilterOptions({
+          tournaments: [''],
+          surfaces: ['', 'Hard', 'Clay', 'Grass', 'Carpet'],
+          learningPhases: ['', 'phase1_data_collection', 'phase2_pattern_recognition', 'phase3_mature_system']
+        })
+      } finally {
+        setLoadingOptions(false)
+      }
+    }
+
+    fetchFilterOptions()
+  }, [])
   const toggleValue = (key, trueValue = 'true', falseValue = 'false') => {
     const current = filters[key]
     if (current === trueValue) {
@@ -97,9 +111,10 @@ export default function FilterPanel({ filters, onChange, loading }) {
             <select
               value={filters.surface}
               onChange={handleInput('surface')}
-              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-400/40"
+              disabled={loadingOptions}
+              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-400/40 disabled:opacity-50"
             >
-              {surfaces.map((surface) => (
+              {filterOptions.surfaces.map((surface) => (
                 <option value={surface} key={surface || 'all'}>
                   {surface || 'All surfaces'}
                 </option>
@@ -111,9 +126,10 @@ export default function FilterPanel({ filters, onChange, loading }) {
             <select
               value={filters.tournament}
               onChange={handleInput('tournament')}
-              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-400/40"
+              disabled={loadingOptions}
+              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-400/40 disabled:opacity-50"
             >
-              {tournaments.map((tournament) => (
+              {filterOptions.tournaments.map((tournament) => (
                 <option value={tournament} key={tournament || 'all'}>
                   {tournament || 'All tournaments'}
                 </option>
@@ -125,9 +141,10 @@ export default function FilterPanel({ filters, onChange, loading }) {
             <select
               value={filters.learningPhase}
               onChange={handleInput('learningPhase')}
-              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400/40"
+              disabled={loadingOptions}
+              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400/40 disabled:opacity-50"
             >
-              {learningPhases.map((phase) => (
+              {filterOptions.learningPhases.map((phase) => (
                 <option value={phase} key={phase || 'all'}>
                   {phase ? phase.replaceAll('_', ' ') : 'All phases'}
                 </option>

@@ -2,8 +2,11 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import { AnimatePresence, motion } from 'framer-motion'
+import { LayoutGrid, List } from 'lucide-react'
 import FilterPanel from './components/FilterPanel.jsx'
 import PredictionTable from './components/PredictionTable.jsx'
+import TournamentRolldowns from './components/TournamentRolldowns.jsx'
+import SocialsSection from './components/SocialsSection.jsx'
 import TimelineRail from './components/TimelineRail.jsx'
 
 const pageSizeOptions = [10, 25, 50, 100]
@@ -45,9 +48,11 @@ export default function App() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [showFilters, setShowFilters] = useState(true)
+  const [viewMode, setViewMode] = useState('rolldowns') // 'rolldowns' or 'table'
   const [filters, setFilters] = useState({
     search: '',
     surface: '',
+    tournament: '',
     learningPhase: '',
     recommendedAction: '',
     predictionCorrect: '',
@@ -134,7 +139,7 @@ export default function App() {
       </motion.header>
 
       <main className="px-4 sm:px-6 max-w-full space-y-6">
-        {/* Compact Overview Cards with Filter Toggle */}
+        {/* Compact Overview Cards with Controls */}
         <motion.div
           className="flex flex-wrap gap-4 items-center justify-between"
           initial={{ opacity: 0, y: 20 }}
@@ -155,22 +160,50 @@ export default function App() {
               <div className="text-lg font-bold text-fuchsia-300">{highlightMetrics.valueBetShare}</div>
             </div>
           </div>
-          
-          {/* Filter Toggle Button */}
-          <motion.button
-            className="uiverse-button flex items-center gap-2"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <span>{showFilters ? '🔼' : '🔽'}</span>
-            {showFilters ? 'Hide Filters' : 'Show Filters'}
-            {!showFilters && (
-              <span className="text-xs bg-teal-500/20 text-teal-300 px-2 py-1 rounded-full">
-                {Object.values(filters).filter(v => v !== '').length} active
-              </span>
-            )}
-          </motion.button>
+
+          <div className="flex items-center gap-3">
+            {/* View Mode Toggle */}
+            <div className="glass-panel rounded-2xl border border-slate-800/70 p-1 flex items-center gap-1">
+              <button
+                onClick={() => setViewMode('rolldowns')}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                  viewMode === 'rolldowns'
+                    ? 'bg-gradient-to-r from-teal-500/20 to-sky-500/20 text-teal-300 border border-teal-500/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <LayoutGrid className="h-4 w-4" />
+                <span className="hidden sm:inline">Tournaments</span>
+              </button>
+              <button
+                onClick={() => setViewMode('table')}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                  viewMode === 'table'
+                    ? 'bg-gradient-to-r from-teal-500/20 to-sky-500/20 text-teal-300 border border-teal-500/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <List className="h-4 w-4" />
+                <span className="hidden sm:inline">Table</span>
+              </button>
+            </div>
+
+            {/* Filter Toggle Button */}
+            <motion.button
+              className="uiverse-button flex items-center gap-2"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <span>{showFilters ? '🔼' : '🔽'}</span>
+              {showFilters ? 'Hide Filters' : 'Show Filters'}
+              {!showFilters && (
+                <span className="text-xs bg-teal-500/20 text-teal-300 px-2 py-1 rounded-full">
+                  {Object.values(filters).filter(v => v !== '').length} active
+                </span>
+              )}
+            </motion.button>
+          </div>
         </motion.div>
 
         {/* Collapsible Filters */}
@@ -199,32 +232,54 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {/* Timeline and Table */}
+        {/* Community Picks Section */}
+        <SocialsSection />
+
+        {/* Timeline and Predictions */}
         <section className="space-y-6">
           <TimelineRail loading={query.isLoading} total={totalRecords} />
-          <motion.div
-            className="glass-panel rounded-3xl border border-slate-800/70 overflow-hidden w-full max-w-none"
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.8, ease: 'easeOut' }}
-          >
-            <PredictionTable
-              data={query.data?.data ?? []}
-              loading={query.isLoading || query.isFetching}
-              error={query.error}
-              page={page}
-              pageSize={pageSize}
-              totalPages={totalPages}
-              totalRecords={totalRecords}
-              onPageChange={setPage}
-              onPageSizeChange={setPageSize}
-              pageSizeOptions={pageSizeOptions}
-              onFilterChange={handleFilterChange}
-              onSortChange={handleFilterChange}
-              sortBy={filters.sortBy}
-              sortDir={filters.sortDir}
-            />
-          </motion.div>
+
+          {/* Tournament Rolldowns View */}
+          {viewMode === 'rolldowns' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.6 }}
+            >
+              <TournamentRolldowns
+                data={query.data?.data ?? []}
+                loading={query.isLoading || query.isFetching}
+                error={query.error}
+              />
+            </motion.div>
+          )}
+
+          {/* Table View */}
+          {viewMode === 'table' && (
+            <motion.div
+              className="glass-panel rounded-3xl border border-slate-800/70 overflow-hidden w-full max-w-none"
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.8, ease: 'easeOut' }}
+            >
+              <PredictionTable
+                data={query.data?.data ?? []}
+                loading={query.isLoading || query.isFetching}
+                error={query.error}
+                page={page}
+                pageSize={pageSize}
+                totalPages={totalPages}
+                totalRecords={totalRecords}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+                pageSizeOptions={pageSizeOptions}
+                onFilterChange={handleFilterChange}
+                onSortChange={handleFilterChange}
+                sortBy={filters.sortBy}
+                sortDir={filters.sortDir}
+              />
+            </motion.div>
+          )}
         </section>
       </main>
 
