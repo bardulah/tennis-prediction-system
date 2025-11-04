@@ -70,6 +70,10 @@ matches-*.json
 # But ignore personal credential files
 *.credential.json
 
+# Allow workflow files in workflows directory
+workflows/*.json
+workflows/**/*.json
+
 # Docker
 .dockerignore
 docker-compose.override.yml
