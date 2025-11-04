@@ -46,9 +46,9 @@ const fetchPredictions = async ({ queryKey }) => {
 
 export default function App() {
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
-  const [showFilters, setShowFilters] = useState(true)
   const [viewMode, setViewMode] = useState('rolldowns') // 'rolldowns' or 'table'
+  const [pageSize, setPageSize] = useState(viewMode === 'rolldowns' ? 1000 : 25)
+  const [showFilters, setShowFilters] = useState(true)
   const [filters, setFilters] = useState({
     search: '',
     surface: '',
@@ -59,8 +59,8 @@ export default function App() {
     valueBet: '',
     minConfidence: '',
     maxConfidence: '',
-    dateFrom: '',
-    dateTo: '',
+    dateFrom: new Date().toISOString().split('T')[0], // Today's date
+    dateTo: new Date().toISOString().split('T')[0],   // Today's date
     sortBy: 'prediction_day',
     sortDir: 'DESC'
   })
@@ -165,7 +165,11 @@ export default function App() {
             {/* View Mode Toggle */}
             <div className="glass-panel rounded-2xl border border-slate-800/70 p-1 flex items-center gap-1">
               <button
-                onClick={() => setViewMode('rolldowns')}
+                onClick={() => {
+                  setViewMode('rolldowns')
+                  setPageSize(1000)
+                  setPage(1)
+                }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
                   viewMode === 'rolldowns'
                     ? 'bg-gradient-to-r from-teal-500/20 to-sky-500/20 text-teal-300 border border-teal-500/30'
@@ -176,7 +180,11 @@ export default function App() {
                 <span className="hidden sm:inline">Tournaments</span>
               </button>
               <button
-                onClick={() => setViewMode('table')}
+                onClick={() => {
+                  setViewMode('table')
+                  setPageSize(25)
+                  setPage(1)
+                }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
                   viewMode === 'table'
                     ? 'bg-gradient-to-r from-teal-500/20 to-sky-500/20 text-teal-300 border border-teal-500/30'

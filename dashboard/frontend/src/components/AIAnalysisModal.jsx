@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Sparkles, Loader2, ExternalLink, AlertCircle } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -25,12 +25,19 @@ export default function AIAnalysisModal({ match, isOpen, onClose }) {
     }
   }
 
+  // Reset analysis when match changes
+  useEffect(() => {
+    setAnalysis(null)
+    setError(null)
+    setLoading(false)
+  }, [match])
+
   // Auto-trigger analysis when modal opens
-  useState(() => {
-    if (isOpen && !analysis && !loading) {
+  useEffect(() => {
+    if (isOpen && !analysis && !loading && match) {
       handleAnalyze()
     }
-  }, [isOpen])
+  }, [isOpen, analysis, loading, match])
 
   if (!isOpen) return null
 
