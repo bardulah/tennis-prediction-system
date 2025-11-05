@@ -195,7 +195,54 @@
     },
     {
       "parameters": {
-        "jsCode": "  // Get all stored predictions from the loop\n  const predictions = $input.all();\n\n  // Get system health data\n  const systemData = $node[\"System Health Check\"].json;\n\n  // Calculate statistics\n  const totalPredictions = predictions.length;\n  const avgConfidence = Math.round(\n    predictions.reduce((sum, p) => sum + p.json.confidence_score, 0) / totalPredictions\n  );\n\n  // Count by action\n  const actions = predictions.reduce((acc, p) => {\n    const action = p.json.recommended_action;\n    acc[action] = (acc[action] || 0) + 1;\n    return acc;\n  }, {});\n\n  // Count by risk\n  const risks = predictions.reduce((acc, p) => {\n    const risk = p.json.risk_assessment;\n    acc[risk] = (acc[risk] || 0) + 1;\n    return acc;\n  }, {});\n\n  // Get top 3 high confidence predictions\n  const topPredictions = predictions\n    .map(p => p.json)\n    .sort((a, b) => b.confidence_score - a.confidence_score)\n    .slice(0, 3);\n\n  // Build the message\n  const message = `🎾 TENNIS PREDICTIONS COMPLETE\n  📅 ${new Date().toISOString().split('T')[0]}\n\n  📊 BATCH SUMMARY:\n  ✅ Total predictions: ${totalPredictions}\n  📈 Average confidence: ${avgConfidence}%\n  🎯 Learning phase: ${systemData.learning_phase}\n  💾 Data quality: ${systemData.data_quality_score}%\n\n  ⚡ RECOMMENDATIONS:\n  🟢 Bet: ${actions.bet || 0}\n  🟡 Monitor: ${actions.monitor || 0}\n  🔴 Skip: ${actions.skip || 0}\n\n  ⚠️ RISK DISTRIBUTION:\n  • Low: ${risks.low || 0}\n  • Medium: ${risks.medium || 0}\n  • High: ${risks.high || 0}\n\n  🏆 TOP 3 CONFIDENT PREDICTIONS:\n\n  ${topPredictions.map((p, i) => \n    `${i+1}. ${p.predicted_winner} (${p.confidence_score}%)\n       ${p.player1} vs ${p.player2}\n       ${p.tournament.substring(0, 40)}...`\n  ).join('\\n\\n')}\n\n  💡 All ${totalPredictions} predictions stored in database!`;\n\n  return {\n    json: {\n      message: message,\n      chat_id: '7142286210',\n      parse_mode: '' // Disable markdown parsing\n    }\n  };\n"
+        "operation": "executeQuery",
+        "query": "  SELECT\n    match_id,\n    prediction_day,\n    tournament,\n    surface,\n    player1,\n    player2,\n    odds_player1,\n    odds_player2,\n    predicted_winner,\n    confidence_score,\n    reasoning,\n    risk_assessment,\n    value_bet,\n    recommended_action,\n    data_quality_score,\n    learning_phase,\n    days_operated,\n    system_accuracy_at_prediction,\n    data_limitations,\n    player1_data_available,\n    player2_data_available,\n    h2h_data_available,\n    surface_data_available,\n    similar_matches_count,\n    prediction_date\n  FROM predictions\n  WHERE prediction_date = CURRENT_DATE\n  ORDER BY confidence_score DESC;\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1456,
+        0
+      ],
+      "id": "b8c3d5f1-9e7a-4b2c-8f1d-3a6b9c2e7d8f",
+      "name": "Query Today's Predictions",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "DdZZnEL2dpMFGOf4",
+          "name": "Postgres account tennis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "sheetId": "YOUR_GOOGLE_SHEET_ID",
+        "range": "A1:V1000",
+        "options": {
+          "headerRow": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1680,
+        0
+      ],
+      "id": "c7f4e6a2-8d9b-4e3f-9c5a-2b1d8e3f7a9b",
+      "name": "Export to Google Sheets",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "  // Get today's date for sheet name\n  const today = new Date().toISOString().split('T')[0];\n  const sheetUrl = `https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=0`;\n  \n  // Build simple message with Google Sheets link\n  const message = `📊 Daily predictions exported: ${sheetUrl}\\n\\n🎾 Tennis Predictions for ${today}`;\n\n  return {\n    json: {\n      message: message,\n      chat_id: '7142286210',\n      parse_mode: ''\n    }\n  };\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1695,6 +1742,28 @@
         [
           {
             "node": "Store in Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Today's Predictions": {
+      "main": [
+        [
+          {
+            "node": "Export to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Export to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
             "type": "main",
             "index": 0
           }
