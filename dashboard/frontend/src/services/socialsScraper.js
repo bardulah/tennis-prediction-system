@@ -11,6 +11,50 @@ const getTavilyApiKey = () => {
 
 const TAVILY_API_URL = 'https://api.tavily.com/search';
 
+// Cache management
+const CACHE_KEY = 'tennis_reddit_cache';
+const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
+
+/**
+ * Get cached data if still valid
+ */
+function getCachedData() {
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (!cached) return null;
+
+    const { data, timestamp } = JSON.parse(cached);
+    const now = Date.now();
+    
+    if (now - timestamp > CACHE_DURATION) {
+      localStorage.removeItem(CACHE_KEY);
+      return null;
+    }
+    
+    console.log('📦 Using cached Reddit data from', new Date(timestamp).toLocaleTimeString());
+    return data;
+  } catch (error) {
+    console.warn('Error reading cache:', error);
+    return null;
+  }
+}
+
+/**
+ * Save data to cache
+ */
+function setCachedData(data) {
+  try {
+    const cacheData = {
+      data,
+      timestamp: Date.now()
+    };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+    console.log('💾 Cached Reddit data for', CACHE_DURATION / 60000, 'minutes');
+  } catch (error) {
+    console.warn('Error saving cache:', error);
+  }
+}
+
 /**
  * Search Reddit for tennis betting discussions and picks
  * @param {string} query - Search query
@@ -63,6 +107,12 @@ export async function searchRedditPicks(query = 'tennis betting picks today', op
  * @returns {Promise<Array>} Array of discussion threads with picks
  */
 export async function getTennisBettingThreads() {
+  // Check cache first
+  const cachedData = getCachedData();
+  if (cachedData) {
+    return cachedData;
+  }
+
   const subreddits = [
     'tennis',
     'sportsbook',
@@ -76,6 +126,8 @@ export async function getTennisBettingThreads() {
   );
 
   try {
+    console.log('🔍 Fetching fresh Reddit data from Tavily API');
+    
     // Fetch from multiple subreddits in parallel
     const results = await Promise.all(
       queries.map(query =>
@@ -87,15 +139,24 @@ export async function getTennisBettingThreads() {
     const allPicks = results.flatMap(r => r.picks);
     const uniquePicks = deduplicatePicks(allPicks);
 
-    return {
+    const finalData = {
       picks: uniquePicks,
       totalThreads: results.reduce((sum, r) => sum + r.totalThreads, 0),
       lastUpdated: new Date().toISOString(),
     };
 
+    // Cache the results
+    setCachedData(finalData);
+
+    return finalData;
+
   } catch (error) {
     console.error('Error fetching betting threads:', error);
-    return getMockRedditData();
+    const fallbackData = getMockRedditData();
+    
+    // Even cache fallback data to avoid repeated API failures
+    setCachedData(fallbackData);
+    return fallbackData;
   }
 }
 

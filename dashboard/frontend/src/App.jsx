@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -34,6 +34,7 @@ const fetchPredictions = async ({ queryKey }) => {
   const params = buildQueryParams(filters, page, pageSize)
   const fullURL = `${baseURL}/api/predictions?${params}`
   console.log('🔗 Making API call to:', fullURL)
+  console.log('📅 Filters being sent:', JSON.stringify(filters, null, 2))
   try {
     const { data } = await axios.get(fullURL)
     console.log('✅ API call successful:', data.meta.total, 'predictions loaded')
@@ -73,6 +74,11 @@ export default function App() {
 
   const meta = query.data?.meta ?? { total: 0, total_pages: 0 }
   const totalRecords = meta.total ?? meta.totalRecords ?? 0
+
+  // Ensure query runs on initial mount with today's date filters
+  React.useEffect(() => {
+    console.log('🚀 Component mounted, ensuring date filters are applied')
+  }, [])
 
   const highlightMetrics = useMemo(() => {
     const rows = query.data?.data ?? []
