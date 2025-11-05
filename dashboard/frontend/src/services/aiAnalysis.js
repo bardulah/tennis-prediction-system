@@ -203,7 +203,7 @@ Please use current, real-time data from web searches to ensure accuracy. Format 
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "llama-3.1-sonar-small-128k-online",
+        model: "sonar-pro",
         messages: [
           {
             role: "user",
@@ -217,9 +217,7 @@ Please use current, real-time data from web searches to ensure accuracy. Format 
         return_images: false,
         return_related_questions: false,
         search_domain_filter: null,
-        stream: false,
-        frequency_penalty: 1,
-        presence_penalty: 1
+        stream: false
       })
     });
 
@@ -248,7 +246,7 @@ Please use current, real-time data from web searches to ensure accuracy. Format 
         url: citation.url || '#'
       })) || [],
       timestamp: new Date().toISOString(),
-      model: "llama-3.1-sonar-small-128k-online",
+      model: "sonar-pro",
       fromCache: false
     };
 
