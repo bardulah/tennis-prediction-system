@@ -69,7 +69,10 @@ export default function App() {
   const query = useQuery({
     queryKey: ['predictions', filters, page, pageSize],
     queryFn: fetchPredictions,
-    keepPreviousData: true
+    keepPreviousData: true,
+    refetchOnWindowFocus: false, // Prevent refetch when tab becomes active
+    refetchOnReconnect: false,   // Prevent refetch on network reconnection
+    retry: false                 // Prevent retry on failed requests
   })
 
   const meta = query.data?.meta ?? { total: 0, total_pages: 0 }

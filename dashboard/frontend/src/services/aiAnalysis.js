@@ -194,6 +194,8 @@ Please use current, real-time data from web searches to ensure accuracy. Format 
 `;
 
   try {
+    console.log('🔮 Calling Perplexity API...');
+    
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
@@ -210,23 +212,32 @@ Please use current, real-time data from web searches to ensure accuracy. Format 
         ],
         max_tokens: 4096,
         temperature: 0.7,
+        top_p: 0.95,
         search_recency_days: 7,
         return_images: false,
         return_related_questions: false,
         search_domain_filter: null,
-        top_p: 0.95,
-        stream: false
+        stream: false,
+        frequency_penalty: 1,
+        presence_penalty: 1
       })
     });
 
+    console.log('🔮 Perplexity response status:', response.status);
+
     if (!response.ok) {
-      throw new Error(`Perplexity API error: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('🔮 Perplexity API error response:', errorText);
+      throw new Error(`Perplexity API error: ${response.statusText} - ${errorText}`);
     }
 
     const data = await response.json();
+    console.log('🔮 Perplexity API response:', data);
+
     const analysis = data.choices?.[0]?.message?.content;
 
     if (!analysis) {
+      console.error('🔮 Perplexity response structure:', Object.keys(data));
       throw new Error("Received empty analysis from Perplexity");
     }
 
