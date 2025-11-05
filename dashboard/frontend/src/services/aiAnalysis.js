@@ -133,8 +133,6 @@ export async function analyzeMatchWithPerplexity(match, forceRefresh = false) {
     player2,
     tournament,
     surface,
-    predicted_winner,
-    confidence_score,
     odds_player1,
     odds_player2,
     prediction_day
@@ -151,7 +149,6 @@ Provide a comprehensive betting analysis for this tennis match:
 - Date: ${matchDate}
 - Player 1: ${player1} (Odds: ${Number(odds_player1).toFixed(2)})
 - Player 2: ${player2} (Odds: ${Number(odds_player2).toFixed(2)})
-- AI Prediction: ${predicted_winner} (${confidence_score}% confidence)
 
 **Analysis Required:**
 
@@ -181,9 +178,9 @@ Provide a comprehensive betting analysis for this tennis match:
    - Motivation factors (rankings, titles, head-to-head rivalry)
 
 6. **Betting Value Assessment:**
-   - Compare AI prediction (${predicted_winner} at ${confidence_score}%) with bookmaker odds
+   - Analyze the betting odds provided: ${player1} at ${Number(odds_player1).toFixed(2)}, ${player2} at ${Number(odds_player2).toFixed(2)}
    - Identify any value in the betting markets
-   - Assess risk vs reward
+   - Assess risk vs reward based on your analysis
 
 7. **Final Prediction:**
    - Clear winner prediction with expected scoreline
@@ -349,8 +346,6 @@ export async function analyzeMatch(match, forceRefresh = false) {
     player2,
     tournament,
     surface,
-    predicted_winner,
-    confidence_score,
     odds_player1,
     odds_player2,
     prediction_day
@@ -367,7 +362,6 @@ Provide a comprehensive betting analysis for this tennis match:
 - Date: ${matchDate}
 - Player 1: ${player1} (Odds: ${Number(odds_player1).toFixed(2)})
 - Player 2: ${player2} (Odds: ${Number(odds_player2).toFixed(2)})
-- AI Prediction: ${predicted_winner} (${confidence_score}% confidence)
 
 **Analysis Required:**
 
@@ -397,9 +391,9 @@ Provide a comprehensive betting analysis for this tennis match:
    - Motivation factors (rankings, titles, head-to-head rivalry)
 
 6. **Betting Value Assessment:**
-   - Compare AI prediction (${predicted_winner} at ${confidence_score}%) with bookmaker odds
+   - Analyze the betting odds provided: ${player1} at ${Number(odds_player1).toFixed(2)}, ${player2} at ${Number(odds_player2).toFixed(2)}
    - Identify any value in the betting markets
-   - Assess risk vs reward
+   - Assess risk vs reward based on your analysis
 
 7. **Final Prediction:**
    - Clear winner prediction with expected scoreline

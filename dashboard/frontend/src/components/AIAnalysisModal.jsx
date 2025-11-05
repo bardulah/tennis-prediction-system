@@ -150,12 +150,12 @@ export default function AIAnalysisModal({ match, isOpen, onClose }) {
                   <div className="font-medium text-slate-200">{match.surface}</div>
                 </div>
                 <div>
-                  <span className="text-slate-400">AI Prediction:</span>
-                  <div className="font-semibold text-emerald-300">{match.predicted_winner}</div>
+                  <span className="text-slate-400">Player 1:</span>
+                  <div className="font-semibold text-emerald-300">{match.player1}</div>
                 </div>
                 <div>
-                  <span className="text-slate-400">Confidence:</span>
-                  <div className="font-semibold text-sky-300">{match.confidence_score}%</div>
+                  <span className="text-slate-400">Player 2:</span>
+                  <div className="font-semibold text-emerald-300">{match.player2}</div>
                 </div>
                 <div>
                   <span className="text-slate-400">Odds:</span>
@@ -164,7 +164,7 @@ export default function AIAnalysisModal({ match, isOpen, onClose }) {
                   </div>
                 </div>
                 <div>
-                  <span className="text-slate-400">Action:</span>
+                  <span className="text-slate-400">Recommended Action:</span>
                   <div className="font-medium text-teal-300 uppercase">{match.recommended_action}</div>
                 </div>
               </div>
