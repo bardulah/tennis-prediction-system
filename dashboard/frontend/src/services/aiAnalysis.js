@@ -231,6 +231,7 @@ Please use current, real-time data from web searches to ensure accuracy. Format 
 
     const data = await response.json();
     console.log('🔮 Perplexity API response:', data);
+    console.log('🔮 Perplexity citations:', data.citations);
 
     const analysis = data.choices?.[0]?.message?.content;
 
@@ -241,10 +242,13 @@ Please use current, real-time data from web searches to ensure accuracy. Format 
 
     const resultData = {
       analysis,
-      sources: data.citations?.map(citation => ({
-        title: citation.title || 'Web Source',
-        url: citation.url || '#'
-      })) || [],
+      sources: data.citations?.map(citation => {
+        console.log('🔮 Processing citation:', citation);
+        return {
+          title: citation.title || citation.url || 'Web Source',
+          url: citation.url || '#'
+        };
+      }) || [],
       timestamp: new Date().toISOString(),
       model: "sonar-pro",
       fromCache: false
@@ -495,7 +499,7 @@ export function getAIProvidersStatus() {
     perplexity: {
       configured: isPerplexityConfigured(),
       name: 'Perplexity',
-      description: 'LLaMA-powered search with real-time web access'
+      description: 'Sonar Pro search with real-time web access'
     }
   };
 }
