@@ -1,22 +1,34 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Sparkles, Loader2, ExternalLink, AlertCircle } from 'lucide-react'
+import { X, Sparkles, Loader2, ExternalLink, AlertCircle, RefreshCw, Database } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
-import { analyzeMatch } from '../services/aiAnalysis'
+import { analyzeMatch, analyzeMatchWithPerplexity, clearMatchAnalysis, getAIProvidersStatus } from '../services/aiAnalysis'
 
 export default function AIAnalysisModal({ match, isOpen, onClose }) {
   const [analysis, setAnalysis] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [selectedProvider, setSelectedProvider] = useState('google')
+  const [providersStatus, setProvidersStatus] = useState(getAIProvidersStatus())
 
-  const handleAnalyze = async () => {
+  const handleAnalyze = async (forceRefresh = false, provider = selectedProvider) => {
     setLoading(true)
     setError(null)
-    setAnalysis(null)
+    if (forceRefresh) {
+      // Clear existing cache when forcing refresh
+      clearMatchAnalysis(match)
+      setAnalysis(null)
+    }
 
     try {
-      const result = await analyzeMatch(match)
+      let result;
+      if (provider === 'perplexity') {
+        result = await analyzeMatchWithPerplexity(match, forceRefresh)
+      } else {
+        result = await analyzeMatch(match, forceRefresh)
+      }
       setAnalysis(result)
+      setSelectedProvider(provider)
     } catch (err) {
       setError(err.message || 'Failed to analyze match')
       console.error('Analysis error:', err)
@@ -82,6 +94,50 @@ export default function AIAnalysisModal({ match, isOpen, onClose }) {
 
           {/* Content */}
           <div className="overflow-y-auto max-h-[calc(90vh-80px)] p-6 space-y-6">
+            {/* AI Provider Selection */}
+            <div className="glass-panel rounded-2xl p-4 border border-slate-800/70">
+              <h3 className="text-sm font-semibold text-slate-300 mb-3">AI Analysis Provider</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {Object.entries(providersStatus).map(([key, status]) => (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      if (status.configured) {
+                        setSelectedProvider(key)
+                        setAnalysis(null) // Clear current analysis
+                        setError(null)
+                      }
+                    }}
+                    disabled={!status.configured}
+                    className={`rounded-xl border p-3 text-left transition-all ${
+                      selectedProvider === key
+                        ? 'border-purple-500/50 bg-purple-500/20'
+                        : status.configured
+                        ? 'border-slate-700 bg-slate-900/50 hover:border-slate-600'
+                        : 'border-slate-800 bg-slate-950/30 cursor-not-allowed opacity-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className={`w-2 h-2 rounded-full ${
+                        status.configured ? 'bg-emerald-400' : 'bg-slate-500'
+                      }`} />
+                      <span className="font-medium text-slate-200">
+                        {status.name}
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-400">
+                      {status.description}
+                    </span>
+                    {!status.configured && (
+                      <span className="text-xs text-rose-400 block mt-1">
+                        API key not configured
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Match Summary Card */}
             <div className="glass-panel rounded-2xl p-4 border border-slate-800/70">
               <div className="grid grid-cols-2 gap-4 text-sm">
@@ -94,12 +150,12 @@ export default function AIAnalysisModal({ match, isOpen, onClose }) {
                   <div className="font-medium text-slate-200">{match.surface}</div>
                 </div>
                 <div>
-                  <span className="text-slate-400">AI Prediction:</span>
-                  <div className="font-semibold text-emerald-300">{match.predicted_winner}</div>
+                  <span className="text-slate-400">Player 1:</span>
+                  <div className="font-semibold text-emerald-300">{match.player1}</div>
                 </div>
                 <div>
-                  <span className="text-slate-400">Confidence:</span>
-                  <div className="font-semibold text-sky-300">{match.confidence_score}%</div>
+                  <span className="text-slate-400">Player 2:</span>
+                  <div className="font-semibold text-emerald-300">{match.player2}</div>
                 </div>
                 <div>
                   <span className="text-slate-400">Odds:</span>
@@ -108,7 +164,7 @@ export default function AIAnalysisModal({ match, isOpen, onClose }) {
                   </div>
                 </div>
                 <div>
-                  <span className="text-slate-400">Action:</span>
+                  <span className="text-slate-400">Recommended Action:</span>
                   <div className="font-medium text-teal-300 uppercase">{match.recommended_action}</div>
                 </div>
               </div>
@@ -144,6 +200,32 @@ export default function AIAnalysisModal({ match, isOpen, onClose }) {
                   >
                     Try Again
                   </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Cache Status Banner */}
+            {analysis?.fromCache && (
+              <motion.div
+                className="rounded-2xl border border-sky-500/30 bg-sky-500/10 p-4"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <div className="flex items-start gap-3">
+                  <Database className="h-5 w-5 text-sky-400 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-sky-300">Cached Analysis</h3>
+                    <p className="text-sm text-sky-200/80 mt-1">
+                      Analysis from {new Date(analysis.cachedAt).toLocaleString()}
+                    </p>
+                    <button
+                      onClick={() => handleAnalyze(true)}
+                      className="mt-3 text-sm text-sky-300 underline hover:text-sky-200 flex items-center gap-1"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Run fresh analysis
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -222,10 +304,60 @@ export default function AIAnalysisModal({ match, isOpen, onClose }) {
                   </div>
                 )}
 
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                  {analysis?.fromCache ? (
+                    <button
+                      onClick={() => handleAnalyze(true, selectedProvider)}
+                      className="flex items-center gap-2 px-6 py-3 rounded-2xl border border-purple-500/50 bg-purple-500/20 text-purple-300 transition-colors hover:bg-purple-500/30"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      <span>Run Fresh Analysis</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleAnalyze(true, selectedProvider)}
+                      className="flex items-center gap-2 px-6 py-3 rounded-2xl border border-slate-800 bg-slate-800 text-slate-300 transition-colors hover:bg-slate-700"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      <span>Re-run Analysis</span>
+                    </button>
+                  )}
+                  
+                  {/* Compare button - only show if both providers are configured */}
+                  {providersStatus.google.configured && providersStatus.perplexity.configured && (
+                    <button
+                      onClick={() => {
+                        // Toggle to the other provider
+                        const otherProvider = selectedProvider === 'google' ? 'perplexity' : 'google';
+                        setSelectedProvider(otherProvider);
+                        setAnalysis(null);
+                        setError(null);
+                      }}
+                      className="flex items-center gap-2 px-6 py-3 rounded-2xl border border-teal-500/50 bg-teal-500/20 text-teal-300 transition-colors hover:bg-teal-500/30"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      <span>
+                        Compare with {selectedProvider === 'google' ? 'Perplexity' : 'Google Gemini'}
+                      </span>
+                    </button>
+                  )}
+                </div>
+
                 {/* Metadata */}
                 <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span>Generated by {analysis.model}</span>
-                  <span>{new Date(analysis.timestamp).toLocaleString()}</span>
+                  <span>
+                    Generated by {analysis.model}
+                    {analysis?.fromCache && ' (from cache)'}
+                  </span>
+                  <span>
+                    {new Date(analysis.timestamp).toLocaleString()}
+                    {analysis?.fromCache && (
+                      <span className="ml-2">
+                        cached {new Date(analysis.cachedAt).toLocaleTimeString()}
+                      </span>
+                    )}
+                  </span>
                 </div>
               </motion.div>
             )}
