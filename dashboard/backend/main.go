@@ -119,8 +119,8 @@ func (s *server) handleListPredictions(w http.ResponseWriter, r *http.Request) {
     if pageSize < 1 {
         pageSize = 25
     }
-    if pageSize > 100 {
-        pageSize = 100
+    if pageSize > 1000 {
+        pageSize = 1000
     }
 
     filters := collectFilters(r)
