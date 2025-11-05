@@ -242,11 +242,39 @@ Please use current, real-time data from web searches to ensure accuracy. Format 
 
     const resultData = {
       analysis,
-      sources: data.citations?.map(citation => {
-        console.log('🔮 Processing citation:', citation);
+      sources: data.citations?.map((citation, index) => {
+        console.log('🔮 Processing citation:', citation, 'Type:', typeof citation);
+        
+        // Handle different citation structures
+        let title, url;
+        
+        if (typeof citation === 'string') {
+          // Citation is just a URL string
+          url = citation;
+          // Extract a meaningful title from URL
+          const domain = url.split('/')[2] || 'Source';
+          const cleanDomain = domain.replace('www.', '');
+          
+          // Skip localhost/dashboard URLs and redirect to actual source
+          if (cleanDomain.includes('localhost') || cleanDomain.includes('193.24.209.9')) {
+            title = 'Tennis Match Data';
+            url = '#';
+          } else {
+            title = cleanDomain;
+          }
+        } else if (typeof citation === 'object' && citation !== null) {
+          // Citation is an object with title and url
+          title = citation.title || citation.url || 'Web Source';
+          url = citation.url || '#';
+        } else {
+          // Fallback
+          title = 'Web Source';
+          url = '#';
+        }
+        
         return {
-          title: citation.title || citation.url || 'Web Source',
-          url: citation.url || '#'
+          title,
+          url: url
         };
       }) || [],
       timestamp: new Date().toISOString(),
