@@ -389,8 +389,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "  SELECT\n    player_name,\n    insight_type,\n    insight_description,\n    confidence,\n    supporting_data,\n    discovered_date\n  FROM player_insights\n  WHERE\n    (player_name = '{{ $('Loop Over Items').item.json.player1 }}'\n     OR player_name = '{{ $('Loop Over Items').item.json.player2 }}')\n    AND is_active = true\n    AND discovered_date >= CURRENT_DATE - INTERVAL '30 days'  -- Only recent insights\n  ORDER BY discovered_date DESC;\n",
-        "options": {}
+        "query": "  SELECT\n    player_name,\n    insight_type,\n    insight_description,\n    confidence,\n    supporting_data,\n    discovered_date\n  FROM player_insights\n  WHERE\n    (player_name = $1 OR player_name = $2)\n    AND is_active = true\n    AND discovered_date >= CURRENT_DATE - INTERVAL '30 days'  -- Only recent insights\n  ORDER BY discovered_date DESC;\n",
+        "options": {
+          "queryReplacement": "= [ \"{{ $('Loop Over Items').item.json.player1 }}\", \"{{ $('Loop Over Items').item.json.player2 }}\" ]"
+        }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
