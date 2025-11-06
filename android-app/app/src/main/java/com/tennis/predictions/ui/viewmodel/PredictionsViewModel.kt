@@ -5,14 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.tennis.predictions.data.model.FilterOptions
 import com.tennis.predictions.data.model.Prediction
 import com.tennis.predictions.data.model.TournamentGroup
-import com.tennis.predictions.data.repository.PredictionsRepository
+import com.tennis.predictions.domain.usecase.*
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
+import javax.inject.Inject
 
 data class PredictionsUiState(
     val isLoading: Boolean = false,
@@ -35,8 +35,12 @@ data class PredictionsUiState(
     val valueBetShare: Double = 0.0
 )
 
-class PredictionsViewModel(
-    private val repository: PredictionsRepository
+@HiltViewModel
+class PredictionsViewModel @Inject constructor(
+    private val getTodaysPredictionsUseCase: GetTodaysPredictionsUseCase,
+    private val getFilterOptionsUseCase: GetFilterOptionsUseCase,
+    private val groupPredictionsByTournamentUseCase: GroupPredictionsByTournamentUseCase,
+    private val calculateStatsUseCase: CalculateStatsUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PredictionsUiState())
@@ -49,48 +53,41 @@ class PredictionsViewModel(
 
     fun loadTodaysPredictions() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
-
-            val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-
-            val result = repository.getPredictions(
-                page = 1,
-                pageSize = 1000,
-                search = _uiState.value.searchQuery.ifBlank { null },
+            val filters = PredictionFilters(
+                searchQuery = _uiState.value.searchQuery.ifBlank { null },
                 tournament = _uiState.value.selectedTournament,
                 surface = _uiState.value.selectedSurface,
                 recommendedAction = _uiState.value.selectedAction,
                 valueBet = if (_uiState.value.showValueBetsOnly) true else null,
                 minConfidence = _uiState.value.minConfidence,
-                maxConfidence = _uiState.value.maxConfidence,
-                dateFrom = today,
-                dateTo = today,
-                sortBy = "confidence_score",
-                sortDir = "DESC"
+                maxConfidence = _uiState.value.maxConfidence
             )
 
-            result.onSuccess { response ->
-                val predictions = response.data
-                val tournamentGroups = repository.groupByTournament(predictions)
-                val (accuracy, avgConf, valueBetShare) = repository.calculateOverallStats(predictions)
+            getTodaysPredictionsUseCase(filters).collect { result ->
+                result.onLoading {
+                    _uiState.update { it.copy(isLoading = true, error = null) }
+                }.onSuccess { predictions ->
+                    val tournamentGroups = groupPredictionsByTournamentUseCase(predictions)
+                    val stats = calculateStatsUseCase(predictions)
 
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        predictions = predictions,
-                        tournamentGroups = tournamentGroups,
-                        accuracy = accuracy,
-                        avgConfidence = avgConf,
-                        valueBetShare = valueBetShare,
-                        error = null
-                    )
-                }
-            }.onFailure { exception ->
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = exception.message ?: "Failed to load predictions"
-                    )
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            predictions = predictions,
+                            tournamentGroups = tournamentGroups,
+                            accuracy = stats.accuracy,
+                            avgConfidence = stats.avgConfidence,
+                            valueBetShare = stats.valueBetShare,
+                            error = null
+                        )
+                    }
+                }.onError { exception ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            error = exception.message ?: "Failed to load predictions"
+                        )
+                    }
                 }
             }
         }
@@ -98,8 +95,10 @@ class PredictionsViewModel(
 
     private fun loadFilterOptions() {
         viewModelScope.launch {
-            repository.getFilterOptions().onSuccess { filters ->
-                _uiState.update { it.copy(filterOptions = filters) }
+            getFilterOptionsUseCase().collect { result ->
+                result.onSuccess { filters ->
+                    _uiState.update { it.copy(filterOptions = filters) }
+                }
             }
         }
     }

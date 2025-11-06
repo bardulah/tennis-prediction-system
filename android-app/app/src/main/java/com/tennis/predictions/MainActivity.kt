@@ -9,28 +9,22 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.tennis.predictions.data.api.RetrofitClient
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.tennis.predictions.data.model.Prediction
-import com.tennis.predictions.data.repository.PredictionsRepository
 import com.tennis.predictions.ui.screens.AnalysisBottomSheet
 import com.tennis.predictions.ui.screens.FilterBottomSheet
 import com.tennis.predictions.ui.screens.MainScreen
 import com.tennis.predictions.ui.theme.TennisPredictionsTheme
-import com.tennis.predictions.ui.viewmodel.AIProvider
 import com.tennis.predictions.ui.viewmodel.AnalysisViewModel
 import com.tennis.predictions.ui.viewmodel.PredictionsViewModel
-import com.tennis.predictions.util.AIAnalysisService
+import com.tennis.predictions.domain.usecase.AIProvider
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
-        // Initialize dependencies
-        val apiService = RetrofitClient.create(cacheDir)
-        val repository = PredictionsRepository(apiService)
-        val aiService = AIAnalysisService(applicationContext)
 
         setContent {
             TennisPredictionsTheme {
@@ -38,10 +32,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    TennisPredictionsApp(
-                        repository = repository,
-                        aiService = aiService
-                    )
+                    TennisPredictionsApp()
                 }
             }
         }
@@ -49,17 +40,9 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun TennisPredictionsApp(
-    repository: PredictionsRepository,
-    aiService: AIAnalysisService
-) {
-    val predictionsViewModel: PredictionsViewModel = viewModel {
-        PredictionsViewModel(repository)
-    }
-
-    val analysisViewModel: AnalysisViewModel = viewModel {
-        AnalysisViewModel(aiService)
-    }
+fun TennisPredictionsApp() {
+    val predictionsViewModel: PredictionsViewModel = hiltViewModel()
+    val analysisViewModel: AnalysisViewModel = hiltViewModel()
 
     val predictionsState by predictionsViewModel.uiState.collectAsState()
     val analysisState by analysisViewModel.uiState.collectAsState()

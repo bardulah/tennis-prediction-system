@@ -9,6 +9,7 @@ import com.google.ai.client.generativeai.type.googleSearch
 import com.google.gson.Gson
 import com.tennis.predictions.BuildConfig
 import com.tennis.predictions.data.model.Prediction
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -18,8 +19,13 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class AIAnalysisService(context: Context) {
+@Singleton
+class AIAnalysisService @Inject constructor(
+    @ApplicationContext context: Context
+) {
 
     private val preferences: SharedPreferences =
         context.getSharedPreferences("ai_cache", Context.MODE_PRIVATE)

@@ -3,12 +3,15 @@ package com.tennis.predictions.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tennis.predictions.data.model.Prediction
-import com.tennis.predictions.util.AIAnalysisService
+import com.tennis.predictions.domain.usecase.AIProvider
+import com.tennis.predictions.domain.usecase.AnalyzeMatchUseCase
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class AnalysisUiState(
     val isLoading: Boolean = false,
@@ -19,12 +22,9 @@ data class AnalysisUiState(
     val fromCache: Boolean = false
 )
 
-enum class AIProvider {
-    GOOGLE, PERPLEXITY
-}
-
-class AnalysisViewModel(
-    private val aiService: AIAnalysisService
+@HiltViewModel
+class AnalysisViewModel @Inject constructor(
+    private val analyzeMatchUseCase: AnalyzeMatchUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AnalysisUiState())
@@ -42,27 +42,26 @@ class AnalysisViewModel(
                 )
             }
 
-            val result = when (provider) {
-                AIProvider.GOOGLE -> aiService.analyzeWithGoogle(prediction)
-                AIProvider.PERPLEXITY -> aiService.analyzeWithPerplexity(prediction)
-            }
-
-            result.onSuccess { analysisResult ->
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        analysis = analysisResult.analysis,
-                        sources = analysisResult.sources,
-                        fromCache = analysisResult.fromCache,
-                        error = null
-                    )
-                }
-            }.onFailure { exception ->
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = exception.message ?: "Analysis failed"
-                    )
+            analyzeMatchUseCase(prediction, provider).collect { result ->
+                result.onLoading {
+                    _uiState.update { it.copy(isLoading = true, error = null) }
+                }.onSuccess { analysisResult ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            analysis = analysisResult.analysis,
+                            sources = analysisResult.sources,
+                            fromCache = analysisResult.fromCache,
+                            error = null
+                        )
+                    }
+                }.onError { exception ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            error = exception.message ?: "Analysis failed"
+                        )
+                    }
                 }
             }
         }
@@ -76,9 +75,5 @@ class AnalysisViewModel(
         _uiState.update {
             AnalysisUiState(selectedProvider = it.selectedProvider)
         }
-    }
-
-    fun clearCache() {
-        aiService.clearCache()
     }
 }
