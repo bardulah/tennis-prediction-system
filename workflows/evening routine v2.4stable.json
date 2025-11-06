@@ -1,0 +1,3678 @@
+{
+  "name": "evening routine v2.4",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tennis-results",
+        "responseMode": "lastNode",
+        "responseData": "allEntries",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -3216,
+        224
+      ],
+      "id": "c17c61f9-a736-45f7-a0e7-14347cd53176",
+      "name": "Webhook",
+      "webhookId": "de9b81b0-c4b6-44be-bb89-39152b9f78c1"
+    },
+    {
+      "parameters": {
+        "jsCode": "  // Extract matches array from webhook body\n  const webhookData = $input.first().json;\n  const matches = webhookData.body;\n\n  // Helper function to escape single quotes for SQL\n  function escapeSql(str) {\n    if (!str) return '';\n    return str.toString().replace(/'/g, \"''\");\n  }\n\n  // Return each match with SQL-safe values\n  return matches.map(match => ({\n    json: {\n      tournament: escapeSql(match.tournament),\n      player1: escapeSql(match.player1),\n      player2: escapeSql(match.player2),\n      winner: escapeSql(match.winner),\n      score: match.score,\n      odds1: match.odds1,\n      odds2: match.odds2,\n      surface: match.surface,\n      country: match.country,\n      player1_nationality: match.nationality1,\n      player2_nationality: match.nationality2,\n      match_date: match.match_date || new Date().toISOString().split('T')[0]\n    }\n  }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3008,
+        224
+      ],
+      "id": "ea040a58-d45e-491f-8cdb-b10e26455fdb",
+      "name": "Extract mathces"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -2800,
+        224
+      ],
+      "id": "cc8a764f-ccaf-4c2a-afa6-2c20e5a1c2b1",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "  SELECT prediction_id, predicted_winner, confidence_score\n  FROM predictions\n  WHERE player1 = '{{ $json.player1 }}'\n    AND player2 = '{{ $json.player2 }}'\n    AND tournament = '{{ $json.tournament }}'\n  LIMIT 1;\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2592,
+        288
+      ],
+      "id": "64d80b14-294c-4676-9b81-345b1a18d75c",
+      "name": "Find Matching Prediction",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "DdZZnEL2dpMFGOf4",
+          "name": "Postgres account tennis"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "  UPDATE predictions\n  SET\n    actual_winner = '{{ $('Loop Over Items').item.json.winner }}',\n    prediction_correct = (predicted_winner = '{{ $('Loop Over Items').item.json.winner }}')\n  WHERE prediction_id = {{ $(\"Find Matching Prediction\").item.json.prediction_id }}\n  RETURNING\n    prediction_id,\n    predicted_winner,\n    actual_winner,\n    prediction_correct,\n    confidence_score,\n    tournament,\n    surface,\n    player1,\n    player2,\n    odds_player1,\n    odds_player2,\n    '{{ $('Loop Over Items').item.json.match_date }}'::date as match_date;\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1920,
+        288
+      ],
+      "id": "c7cee310-5acb-4691-8da1-35cef2518e4c",
+      "name": "Update Prediction",
+      "credentials": {
+        "postgres": {
+          "id": "DdZZnEL2dpMFGOf4",
+          "name": "Postgres account tennis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "  // Get all updated predictions from the loop\n  const results = $(\"Loop Over Items\").all();\n\n  // Calculate statistics\n  const total = results.length;\n  const correct = results.filter(r => r.json.prediction_correct === true).length;\n  const incorrect = total - correct;\n  const accuracy = ((correct / total) * 100).toFixed(2);\n\n  // Calculate average confidence\n  const avgConfidence = Math.round(\n    results.reduce((sum, r) => sum + r.json.confidence_score, 0) / total\n  );\n\n  // Group by confidence bucket\n  const highConf = results.filter(r => r.json.confidence_score >= 60);\n  const mediumConf = results.filter(r => r.json.confidence_score >= 50 && r.json.confidence_score < 60);\n  const lowConf = results.filter(r => r.json.confidence_score < 50);\n\n  const stats = {\n    date: new Date().toISOString().split('T')[0],\n    total_predictions: total,\n    correct_predictions: correct,\n    incorrect_predictions: incorrect,\n    accuracy_percentage: parseFloat(accuracy),\n    average_confidence: avgConfidence,\n\n    high_confidence: {\n      total: highConf.length,\n      correct: highConf.filter(r => r.json.prediction_correct).length,\n      accuracy: highConf.length > 0 ?\n        ((highConf.filter(r => r.json.prediction_correct).length / highConf.length) * 100).toFixed(2) : 0\n    },\n\n    medium_confidence: {\n      total: mediumConf.length,\n      correct: mediumConf.filter(r => r.json.prediction_correct).length,\n      accuracy: mediumConf.length > 0 ?\n        ((mediumConf.filter(r => r.json.prediction_correct).length / mediumConf.length) * 100).toFixed(2) : 0\n    },\n\n    low_confidence: {\n      total: lowConf.length,\n      correct: lowConf.filter(r => r.json.prediction_correct).length,\n      accuracy: lowConf.length > 0 ?\n        ((lowConf.filter(r => r.json.prediction_correct).length / lowConf.length) * 100).toFixed(2) : 0\n    }\n  };\n\n  return { json: stats };\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        128
+      ],
+      "id": "a4a89b88-ef62-4429-8874-e3a694de643d",
+      "name": "Calculate Daily Stats"
+    },
+    {
+      "parameters": {
+        "jsCode": "const stats = $('Calculate Daily Stats').first().json;\nconst metadata = $('Update System Metadata').first().json;\nconst analysis = $('Extract LLM Response').first().json;\n\nconst message = `📊 DAILY RESULTS PROCESSED\n📅 ${stats.date}\n\n✅ ACCURACY SUMMARY:\n• Total predictions: ${stats.total_predictions}\n• Correct: ${stats.correct_predictions}\n• Incorrect: ${stats.incorrect_predictions}\n• Overall accuracy: ${stats.accuracy_percentage}%\n\n📈 BY CONFIDENCE LEVEL:\n🔴 High (60%+): ${stats.high_confidence.correct}/${stats.high_confidence.total} (${stats.high_confidence.accuracy}%)\n🟡 Medium (50-59%): ${stats.medium_confidence.correct}/${stats.medium_confidence.total} (${stats.medium_confidence.accuracy}%)\n🟢 Low (<50%): ${stats.low_confidence.correct}/${stats.low_confidence.total} (${stats.low_confidence.accuracy}%)\n\n💡 Average confidence: ${stats.average_confidence}%\n\n🎓 LEARNING ANALYSIS:\n${analysis.summary}\n\n📈 SYSTEM STATUS:\n• Day: ${metadata.days_operated}\n• Phase: ${metadata.learning_phase}\n• Total accuracy: ${metadata.overall_accuracy}%\n• Pinecone records: ${metadata.pinecone_record_count}\n\n🔍 Top Action Items:\n${analysis.action_items.slice(0, 3).map((item, i) => `${i+1}. ${item}`).join('\\n')}\n\n🎯 All predictions updated in database!`;\n\nreturn {\n  json: {\n    message: message,\n    chat_id: '7142286210',\n    parse_mode: ''\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1552,
+        144
+      ],
+      "id": "98712aad-a7d0-4c51-accb-5a96e0c266e6",
+      "name": "Format Telegram Message"
+    },
+    {
+      "parameters": {
+        "chatId": "7142286210",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1712,
+        144
+      ],
+      "id": "78134ce3-d06b-4ec2-8df3-0410e4cd2537",
+      "name": "Send a text message",
+      "webhookId": "17ffad1b-5c9f-4965-b87a-67a96963a037",
+      "credentials": {
+        "telegramApi": {
+          "id": "gPRsbNhjNn4pXQAB",
+          "name": "Telegram account stocker"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "  // Get all Pinecone records from previous node\n  const allRecords = $input.all();\n\n  const BATCH_SIZE = 90; // Pinecone limit is 96, use 90 to be safe\n\n  // Split records into batches of 90\n  const batches = [];\n  for (let i = 0; i < allRecords.length; i += BATCH_SIZE) {\n    const batch = allRecords.slice(i, i + BATCH_SIZE);\n\n    // Convert batch to NDJSON format\n    const ndjson = batch.map(item => {\n      const record = item.json;\n      return {\n        _id: record.id,\n        match_context: record.match_context,\n        tournament: record.tournament,\n        surface: record.surface,\n        player1: record.player1,\n        player2: record.player2,\n        winner: record.winner,\n        predicted_winner: record.predicted_winner,\n        prediction_correct: record.prediction_correct,\n        odds_winner: record.odds_winner,\n        match_date: record.match_date\n      };\n    })\n    .map(record => JSON.stringify(record))\n    .join('\\n');\n\n    batches.push({\n      json: {\n        ndjson_data: ndjson,\n        batch_number: batches.length + 1,\n        record_count: batch.length,\n        total_records: allRecords.length\n      }\n    });\n  }\n\n  console.log(`Split ${allRecords.length} records into ${batches.length} batches`);\n\n  // Return all batches as separate items\n  return batches;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1360,
+        128
+      ],
+      "id": "d5beb645-9861-4926-9d32-5a7a75466e81",
+      "name": "Prepare Pinecone Batch"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://tennis-match-embeddings-bjs37qr.svc.aped-4627-b74a.pinecone.io/records/namespaces/production/upsert",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "pineconeApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-ndjson"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "body": "={{ $json.ndjson_data }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1168,
+        128
+      ],
+      "id": "6b1ea2dd-7eac-4be1-8c75-4665889f14db",
+      "name": "Upload to Pinecone",
+      "retryOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nxpZYiVvscfFFQIe",
+          "name": "Header Auth openrouter"
+        },
+        "pineconeApi": {
+          "id": "zDSlU5rks5rQ8PdT",
+          "name": "PineconeApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "  // Get ALL updated predictions from the loop\n  const allResults = $input.all();\n\n  console.log(`Processing ${allResults.length} records for Pinecone`);\n\n  // Build Pinecone record for each match\n  const pineconeRecords = allResults.map(item => {\n    const match = item.json;\n\n    // Use match_date from the match data (with fallback to current date)\n    const matchDate = match.match_date || new Date().toISOString().split('T')[0];\n\n    // Build match context text for embedding\n    const matchContext = `\nMatch: ${match.player1} vs ${match.player2}\nTournament: ${match.tournament}\nSurface: ${match.surface}\nOdds: ${match.player1} ${match.odds_player1} | ${match.player2} ${match.odds_player2}\nPredicted Winner: ${match.predicted_winner} (${match.confidence_score}% confidence)\nActual Winner: ${match.actual_winner}\nResult: ${match.prediction_correct ? 'CORRECT' : 'INCORRECT'}\n    `.trim();\n\n    return {\n      json: {\n        id: `${match.tournament}_${match.player1}_${match.player2}_${matchDate}`.replace(/[^a-zA-Z0-9_-]/g, '_'),\n        match_context: matchContext,\n        tournament: match.tournament,\n        surface: match.surface,\n        player1: match.player1,\n        player2: match.player2,\n        winner: match.actual_winner,\n        predicted_winner: match.predicted_winner,\n        prediction_correct: match.prediction_correct,\n        odds_winner: match.actual_winner === match.player1 ? match.odds_player1 : match.odds_player2,\n        match_date: matchDate\n      }\n    };\n  });\n\n  // Return all records\n  return pineconeRecords;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2384,
+        128
+      ],
+      "id": "678b4371-dddc-45dd-876f-d2b928d8b1a9",
+      "name": "Build All Pinecone Records"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO matches (\n  match_unique_id,\n  tournament,\n  country,\n  surface,\n  player1,\n  player1_nationality,\n  player2,\n  player2_nationality,\n  odds_player1,\n  odds_player2,\n  winner,\n  loser,\n  score,\n  match_date,\n  is_upset,\n  odds_winner,\n  odds_loser,\n  implied_prob_player1,    -- ADD THIS\n  implied_prob_player2,    -- ADD THIS\n  favorite,                 -- ADD THIS\n  favorite_won              -- ADD THIS\n)\nVALUES (\n  '{{ $('Loop Over Items').item.json.tournament }}_{{ $('Loop Over Items').item.json.player1 }}_{{ $('Loop Over Items').item.json.player2 }}_{{ $('Loop Over Items').item.json.match_date }}',\n  '{{ $('Loop Over Items').item.json.tournament }}',\n  '{{ $('Loop Over Items').item.json.country }}',\n  '{{ $('Loop Over Items').item.json.surface }}',\n  '{{ $('Loop Over Items').item.json.player1 }}',\n  '{{ $('Loop Over Items').item.json.player1_nationality }}',\n  '{{ $('Loop Over Items').item.json.player2 }}',\n  '{{ $('Loop Over Items').item.json.player2_nationality }}',\n  {{ $('Loop Over Items').item.json.odds1 }},\n  {{ $('Loop Over Items').item.json.odds2 }},\n  '{{ $('Loop Over Items').item.json.winner }}',\n  (CASE\n    WHEN '{{ $('Loop Over Items').item.json.winner }}' = '{{ $('Loop Over Items').item.json.player1 }}'\n      THEN '{{ $('Loop Over Items').item.json.player2 }}'\n    ELSE '{{ $('Loop Over Items').item.json.player1 }}'\n  END),\n  '{{ $('Loop Over Items').item.json.score }}',\n  '{{ $('Loop Over Items').item.json.match_date }}'::date,\n  (CASE\n    WHEN {{ $('Loop Over Items').item.json.odds1 }} < {{ $('Loop Over Items').item.json.odds2 }}\n      THEN '{{ $('Loop Over Items').item.json.winner }}' != '{{ $('Loop Over Items').item.json.player1 }}'\n    ELSE '{{ $('Loop Over Items').item.json.winner }}' != '{{ $('Loop Over Items').item.json.player2 }}'\n  END),\n  (CASE\n    WHEN '{{ $('Loop Over Items').item.json.winner }}' = '{{ $('Loop Over Items').item.json.player1 }}'\n      THEN {{ $('Loop Over Items').item.json.odds1 }}\n    ELSE {{ $('Loop Over Items').item.json.odds2 }}\n  END),\n  (CASE\n    WHEN '{{ $('Loop Over Items').item.json.winner }}' = '{{ $('Loop Over Items').item.json.player1 }}'\n      THEN {{ $('Loop Over Items').item.json.odds2 }}\n    ELSE {{ $('Loop Over Items').item.json.odds1 }}\n  END),\n  ROUND((1.0 / {{ $('Loop Over Items').item.json.odds1 }}) * 100, 2),  -- ADD: implied_prob_player1\n  ROUND((1.0 / {{ $('Loop Over Items').item.json.odds2 }}) * 100, 2),  -- ADD: implied_prob_player2\n  (CASE  -- ADD: favorite\n    WHEN {{ $('Loop Over Items').item.json.odds1 }} < {{ $('Loop Over Items').item.json.odds2 }}\n      THEN '{{ $('Loop Over Items').item.json.player1 }}'\n    ELSE '{{ $('Loop Over Items').item.json.player2 }}'\n  END),\n  (CASE  -- ADD: favorite_won\n    WHEN {{ $('Loop Over Items').item.json.odds1 }} < {{ $('Loop Over Items').item.json.odds2 }}\n      THEN '{{ $('Loop Over Items').item.json.winner }}' = '{{ $('Loop Over Items').item.json.player1 }}'\n    ELSE '{{ $('Loop Over Items').item.json.winner }}' = '{{ $('Loop Over Items').item.json.player2 }}'\n  END)\n)\nON CONFLICT (match_unique_id) DO UPDATE SET\n  winner = EXCLUDED.winner,\n  loser = EXCLUDED.loser,\n  score = EXCLUDED.score,\n  is_upset = EXCLUDED.is_upset,\n  odds_winner = EXCLUDED.odds_winner,\n  odds_loser = EXCLUDED.odds_loser,\n  implied_prob_player1 = EXCLUDED.implied_prob_player1,     -- ADD THIS\n  implied_prob_player2 = EXCLUDED.implied_prob_player2,     -- ADD THIS\n  favorite = EXCLUDED.favorite,                              -- ADD THIS\n  favorite_won = EXCLUDED.favorite_won;                      -- ADD THIS",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1760,
+        288
+      ],
+      "id": "8b330d01-68d6-4c7e-9283-297ff46586f1",
+      "name": "Insert Match Into Database",
+      "credentials": {
+        "postgres": {
+          "id": "DdZZnEL2dpMFGOf4",
+          "name": "Postgres account tennis"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH stats AS (\n  SELECT\n    COUNT(*) as total_preds,\n    SUM(CASE WHEN prediction_correct = true THEN 1 ELSE 0 END) as correct_preds,\n    SUM(CASE WHEN prediction_correct = false THEN 1 ELSE 0 END) as incorrect_preds,\n    AVG(CASE WHEN prediction_correct = true THEN confidence_score ELSE NULL END) as avg_conf_correct,\n    AVG(CASE WHEN prediction_correct = false THEN confidence_score ELSE NULL END) as avg_conf_incorrect,\n    COUNT(CASE WHEN confidence_score >= 60 AND prediction_correct = true THEN 1 END) as high_conf_correct,\n    COUNT(CASE WHEN confidence_score >= 60 THEN 1 END) as high_conf_total,\n    COUNT(CASE WHEN confidence_score >= 50 AND confidence_score < 60 AND prediction_correct = true THEN 1 END) as med_conf_correct,\n    COUNT(CASE WHEN confidence_score >= 50 AND confidence_score < 60 THEN 1 END) as med_conf_total,\n    COUNT(CASE WHEN confidence_score < 50 AND prediction_correct = true THEN 1 END) as low_conf_correct,\n    COUNT(CASE WHEN confidence_score < 50 THEN 1 END) as low_conf_total\n  FROM predictions\n  WHERE actual_winner IS NOT NULL\n),\npinecone_count AS (\n  SELECT COUNT(*) as total FROM matches\n)\nUPDATE system_metadata\nSET\n  days_operated = days_operated + 1,\n  total_matches_processed = (SELECT COUNT(*) FROM matches),\n  total_predictions_made = (SELECT total_preds FROM stats),\n  correct_predictions = (SELECT correct_preds FROM stats),\n  incorrect_predictions = (SELECT incorrect_preds FROM stats),\n  overall_accuracy = ROUND((SELECT correct_preds::numeric / NULLIF(total_preds, 0) * 100 FROM stats), 2),\n  avg_confidence_when_correct = ROUND((SELECT avg_conf_correct FROM stats), 2),\n  avg_confidence_when_incorrect = ROUND((SELECT avg_conf_incorrect FROM stats), 2),\n  accuracy_high_confidence = ROUND((SELECT high_conf_correct::numeric / NULLIF(high_conf_total, 0) * 100 FROM stats), 2),\n  accuracy_medium_confidence = ROUND((SELECT med_conf_correct::numeric / NULLIF(med_conf_total, 0) * 100 FROM stats), 2),\n  accuracy_low_confidence = ROUND((SELECT low_conf_correct::numeric / NULLIF(low_conf_total, 0) * 100 FROM stats), 2),\n  pinecone_record_count = (SELECT total FROM pinecone_count),\n  learning_phase = CASE\n    WHEN days_operated + 1 < 8 THEN 'phase1_data_collection'\n    WHEN days_operated + 1 < 22 THEN 'phase2_pattern_recognition'\n    ELSE 'phase3_mature_system'\n  END,\n  last_update = NOW(),\n  last_result_date = CURRENT_DATE\nWHERE id = 1\nRETURNING days_operated, learning_phase, overall_accuracy, pinecone_record_count;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -752,
+        128
+      ],
+      "id": "8b4f0d61-0511-4372-9cf3-f7b6d9181921",
+      "name": "Update System Metadata",
+      "credentials": {
+        "postgres": {
+          "id": "DdZZnEL2dpMFGOf4",
+          "name": "Postgres account tennis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "  INSERT INTO prediction_accuracy (\n    date,\n    total_predictions,\n    correct_predictions,\n    incorrect_predictions,\n    daily_accuracy,\n    high_conf_predictions,\n    high_conf_correct,\n    high_conf_accuracy,\n    medium_conf_predictions,\n    medium_conf_correct,\n    medium_conf_accuracy,\n    low_conf_predictions,\n    low_conf_correct,\n    low_conf_accuracy,\n    learning_phase\n  )\n  VALUES (\n    CURRENT_DATE,\n    {{ $('Calculate Daily Stats').item.json.total_predictions }},\n    {{ $('Calculate Daily Stats').item.json.correct_predictions }},\n    {{ $('Calculate Daily Stats').item.json.incorrect_predictions }},\n    {{ $('Calculate Daily Stats').item.json.accuracy_percentage }},\n    {{ $('Calculate Daily Stats').item.json.high_confidence.total }},\n    {{ $('Calculate Daily Stats').item.json.high_confidence.correct }},\n    {{ $('Calculate Daily Stats').item.json.high_confidence.accuracy }},\n    {{ $('Calculate Daily Stats').item.json.medium_confidence.total }},\n    {{ $('Calculate Daily Stats').item.json.medium_confidence.correct }},\n    {{ $('Calculate Daily Stats').item.json.medium_confidence.accuracy }},\n    {{ $('Calculate Daily Stats').item.json.low_confidence.total }},\n    {{ $('Calculate Daily Stats').item.json.low_confidence.correct }},\n    {{ $('Calculate Daily Stats').item.json.low_confidence.accuracy }},\n    (SELECT learning_phase FROM system_metadata WHERE id = 1)\n  )\n  ON CONFLICT (date) DO UPDATE SET\n    total_predictions = EXCLUDED.total_predictions,\n    correct_predictions = EXCLUDED.correct_predictions,\n    incorrect_predictions = EXCLUDED.incorrect_predictions,\n    daily_accuracy = EXCLUDED.daily_accuracy,\n    high_conf_predictions = EXCLUDED.high_conf_predictions,\n    high_conf_correct = EXCLUDED.high_conf_correct,\n    high_conf_accuracy = EXCLUDED.high_conf_accuracy,\n    medium_conf_predictions = EXCLUDED.medium_conf_predictions,\n    medium_conf_correct = EXCLUDED.medium_conf_correct,\n    medium_conf_accuracy = EXCLUDED.medium_conf_accuracy,\n    low_conf_predictions = EXCLUDED.low_conf_predictions,\n    low_conf_correct = EXCLUDED.low_conf_correct,\n    low_conf_accuracy = EXCLUDED.low_conf_accuracy,\n    learning_phase = EXCLUDED.learning_phase;\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -544,
+        128
+      ],
+      "id": "340279c6-a535-40ed-98a3-35721f9f4bd2",
+      "name": "Store Daily Stats",
+      "credentials": {
+        "postgres": {
+          "id": "DdZZnEL2dpMFGOf4",
+          "name": "Postgres account tennis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "  SELECT\n    p.prediction_id,\n    p.tournament,\n    p.surface,\n    p.player1,\n    p.player2,\n    p.predicted_winner,\n    p.actual_winner,\n    p.confidence_score,\n    p.reasoning,\n    p.odds_player1,\n    p.odds_player2,\n    p.days_operated,\n    p.data_quality_score,\n    p.player1_data_available,\n    p.player2_data_available,\n\n    -- Add match result data\n    m.score,\n    m.is_upset,\n    m.odds_winner,\n    m.odds_loser,\n\n    -- Player 1 stats (can be NULL for new players)\n    pl1.total_matches as player1_total_matches,\n    pl1.win_rate_overall as player1_win_rate,\n    pl1.win_rate_clay as player1_win_rate_clay,\n    pl1.win_rate_hard as player1_win_rate_hard,\n    pl1.win_rate_grass as player1_win_rate_grass,\n    pl1.giant_killer_score as player1_giant_killer_score,\n    pl1.vs_favorites_win_rate as player1_vs_favorites_rate,\n    pl1.recent_form_last_5 as player1_recent_form,\n    pl1.momentum_score as player1_momentum,\n\n    -- Player 2 stats (can be NULL for new players)\n    pl2.total_matches as player2_total_matches,\n    pl2.win_rate_overall as player2_win_rate,\n    pl2.win_rate_clay as player2_win_rate_clay,\n    pl2.win_rate_hard as player2_win_rate_hard,\n    pl2.win_rate_grass as player2_win_rate_grass,\n    pl2.giant_killer_score as player2_giant_killer_score,\n    pl2.vs_favorites_win_rate as player2_vs_favorites_rate,\n    pl2.recent_form_last_5 as player2_recent_form,\n    pl2.momentum_score as player2_momentum\n\n  FROM predictions p\n  LEFT JOIN players pl1 ON pl1.player_name = p.player1\n  LEFT JOIN players pl2 ON pl2.player_name = p.player2\n  LEFT JOIN matches m ON m.prediction_id = p.prediction_id\n  WHERE p.prediction_correct = false\n    AND p.prediction_date = '{{ $('Extract mathces').first().json.match_date }}'\n  ORDER BY p.confidence_score DESC;\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -336,
+        128
+      ],
+      "id": "13eb6ef7-6828-4631-a28e-6d38c615fe32",
+      "name": "Get Failed Predictions",
+      "credentials": {
+        "postgres": {
+          "id": "DdZZnEL2dpMFGOf4",
+          "name": "Postgres account tennis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "openai/gpt-5",
+          "mode": "id"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=  Analyze today's failed predictions and identify learning opportunities.\n\n  Failed Predictions (with player stats and match results):\n  {{ JSON.stringify($('Get Failed Predictions').all().map(item => item.json), null, 2) }}\n\n  Daily Stats:\n  {{ JSON.stringify($('Calculate Daily Stats').item.json, null, 2) }}\n\n  IMPORTANT: You have access to BOTH historical player stats AND today's match results.\n\n  PLAYER STATISTICS (may be NULL for new players):\n  - total_matches: Number of historical matches (NULL = new player)\n  - win_rate_*: Win rates by surface\n  - giant_killer_score: Ability to beat favorites (0-10 scale)\n  - vs_favorites_win_rate: Win rate when underdog\n  - recent_form: Last 5 matches (e.g., \"WWLWL\")\n  - momentum_score: Recent performance (0-10 scale)\n\n  MATCH RESULT DATA:\n  - score: Match score (e.g., \"6-1 6-1\", \"7-6 6-4\")\n  - is_upset: Whether this was an upset win\n  - odds_winner/odds_loser: Actual odds for winner/loser\n\n  ---\n\n  SYSTEM-LEVEL PATTERNS (affect multiple matches):\n  These go in \"patterns_discovered\" - DO NOT mention specific player names:\n  - Odds bias (e.g., \"System overweights favorites 1.30-1.80\")\n  - Data quality issues (e.g., \"Fails when both players <5 matches\")\n  - Surface patterns (e.g., \"Indoor hard qualifiers volatile\")\n\n  PLAYER-SPECIFIC INSIGHTS (individual player behaviors):\n  These go in \"player_specific_insights\" - use EXACT player names from data:\n\n  **PATTERN-BASED insights** (require 10+ matches):\n  - surface_specialist: 80%+ win rate on specific surface with 15+ matches\n  - giant_killer: giant_killer_score > 5 with multiple upset wins\n  - momentum_rising: momentum_score > 7 with recent win streak\n\n  **EVENT-BASED insights** (can be from single match):\n  - upset_winner: Won as underdog today (check is_upset = true)\n  - dominant_performance: Crushed opponent with score like \"6-0 6-1\", \"6-1 6-1\", \"6-2 6-0\"\n  - even_odds_dominance: Close odds (1.50-2.00 range both) but dominant score\n  - emerging_threat: New player (total_matches < 5 or NULL) with strong win\n  - form_concern: Player lost badly (reverse of dominant_performance)\n\n  **RULES FOR EVENT-BASED INSIGHTS:**\n  1. Upset winner: is_upset = true AND player won\n  2. Dominant score: Score shows 2+ set differential OR sets won 6-0, 6-1, or 6-2\n  3. Even odds dominance: Both odds 1.50-2.00 AND dominant score\n  4. Emerging threat: total_matches NULL or < 5 AND player won\n  5. Form concern: Lost badly with dominant score against them\n\n  **OUTPUT FORMAT:**\n\n  Respond with JSON in this exact format:\n  {\n    \"summary\": \"Brief 2-3 sentence summary of today's performance\",\n    \"key_failures\": [\n      {\n        \"prediction_id\": 123,\n        \"failure_reason\": \"Why this prediction failed\",\n        \"learning\": \"What we learned\",\n        \"impact_score\": 8\n      }\n    ],\n    \"patterns_discovered\": [\n      {\n        \"pattern_type\": \"odds_bias | other\",\n        \"description\": \"SYSTEM-LEVEL pattern (no player names)\",\n        \"affected_predictions\": [123, 456],\n        \"recommendation\": \"How to adjust the system\"\n      }\n    ],\n    \"player_specific_insights\": [\n      {\n        \"player_name\": \"Exact player name from data\",\n        \"insight_type\": \"surface_specialist | giant_killer | momentum_rising | upset_winner | dominant_performance | even_odds_dominance | emerging_threat |\n  form_concern\",\n        \"description\": \"Brief insight (max 100 chars) - include score if relevant\",\n        \"confidence\": 60-90,\n        \"affected_predictions\": [123],\n        \"recommendation\": \"How to adjust for THIS player\",\n        \"supporting_data\": {\n          \"score\": \"6-1 6-1\",\n          \"was_upset\": true,\n          \"odds\": 2.50,\n          \"historical_matches\": 15\n        }\n      }\n    ],\n    \"confidence_calibration\": {\n      \"high_confidence_analysis\": \"Analysis of 60%+ confidence predictions\",\n      \"recommended_adjustment\": \"Increase/Decrease confidence by X%\"\n    },\n    \"action_items\": [\n      \"Specific actionable improvements\"\n    ]\n  }\n\n  **IMPORTANT:**\n  - Create player insights even for players with no historical data (NULL stats)\n  - Use match score to detect dominant performances\n  - Check is_upset flag to identify upset winners\n  - Include score in supporting_data when relevant\n  - Set confidence lower (60-70) for event-based insights vs pattern-based (75-90)\n"
+            },
+            {
+              "content": "You are an expert tennis prediction analyst. Analyze failed predictions to identify patterns, systematic errors, and improvement opportunities. Always respond with valid JSON only.\n",
+              "role": "system"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        -160,
+        128
+      ],
+      "id": "d7ffe189-9a65-46e7-8611-ded3d6ee08e5",
+      "name": "LLM Learning Analysis",
+      "executeOnce": true,
+      "retryOnFail": true,
+      "credentials": {
+        "openAiApi": {
+          "id": "AQOSCAm1HBdgfCrn",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "  const response = $input.first().json;\n\n  // Extract JSON from OpenAI node response\n  let analysis;\n  try {\n    // OpenAI node returns the message content directly\n    const content = response.message?.content || response.choices?.[0]?.message?.content;\n\n    // Try to parse as JSON\n    analysis = typeof content === 'string' ? JSON.parse(content) : content;\n  } catch (e) {\n    console.error('Failed to parse LLM response:', e);\n    analysis = {\n      summary: 'LLM analysis failed to parse',\n      key_failures: [],\n      patterns_discovered: [],\n      confidence_calibration: {\n        high_confidence_analysis: 'N/A',\n        recommended_adjustment: 'N/A'\n      },\n      action_items: ['Review LLM response format']\n    };\n  }\n\n  return { json: analysis };\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        128
+      ],
+      "id": "5a5cf30a-7d31-4541-af88-b6da0393ace8",
+      "name": "Extract LLM Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "  const analysis = $input.first().json;\n  const dailyStats = $('Calculate Daily Stats').first().json;\n\n  // Helper function to escape single quotes for SQL\n  function escapeSql(str) {\n    if (!str) return '';\n    return str.toString().replace(/'/g, \"''\");\n  }\n\n  // Build learning log entries from LLM analysis\n  const learningEntries = [];\n\n  // 1. Daily summary entry\n  learningEntries.push({\n    json: {\n      log_type: 'daily_summary',\n      description: escapeSql(analysis.summary),\n      learning_data: JSON.stringify({\n        daily_stats: dailyStats,\n        total_failures: analysis.key_failures.length,\n        patterns_found: analysis.patterns_discovered.length\n      }).replace(/'/g, \"''\"),  // Escape quotes in JSON too\n      impact_score: 5\n    }\n  });\n\n  // 2. Individual failure entries\n  analysis.key_failures.forEach(failure => {\n    learningEntries.push({\n      json: {\n        log_type: 'prediction_failure',\n        description: escapeSql(failure.failure_reason),\n        related_prediction_id: failure.prediction_id,\n        learning_data: JSON.stringify({\n          learning: failure.learning,\n          impact_score: failure.impact_score\n        }).replace(/'/g, \"''\"),\n        impact_score: failure.impact_score || 5\n      }\n    });\n  });\n\n  // 3. Pattern discovery entries\n  analysis.patterns_discovered.forEach(pattern => {\n    learningEntries.push({\n      json: {\n        log_type: 'pattern_discovery',\n        description: escapeSql(pattern.description),\n        learning_data: JSON.stringify({\n          pattern_type: pattern.pattern_type,\n          affected_predictions: pattern.affected_predictions,\n          recommendation: pattern.recommendation\n        }).replace(/'/g, \"''\"),\n        impact_score: 7\n      }\n    });\n  });\n\n  // 4. Confidence calibration entry\n  learningEntries.push({\n    json: {\n      log_type: 'confidence_calibration',\n      description: escapeSql(analysis.confidence_calibration.high_confidence_analysis),\n      learning_data: JSON.stringify({\n        recommended_adjustment: analysis.confidence_calibration.recommended_adjustment,\n        daily_accuracy: dailyStats.accuracy_percentage\n      }).replace(/'/g, \"''\"),\n      impact_score: 6\n    }\n  });\n\n  return learningEntries;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        48
+      ],
+      "id": "398533f4-5b35-48a6-9908-d286caea8a0c",
+      "name": "Store Learning Insights"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO learning_log (\n  log_date,\n  learning_type,\n  description,\n  related_prediction_id,\n  learning_data,\n  impact_score,\n  action_taken\n)\nVALUES (\n  CURRENT_DATE,\n  '{{ $json.log_type }}',\n  '{{ $json.description }}',\n  {{ $json.related_prediction_id || 'NULL' }},\n  '{{ $json.learning_data }}'::jsonb,\n  {{ $json.impact_score }},\n  'stored_for_analysis'\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        752,
+        48
+      ],
+      "id": "575820f3-a51a-4e72-9ba1-56d9bc76b792",
+      "name": "Insert Learning Logs",
+      "credentials": {
+        "postgres": {
+          "id": "DdZZnEL2dpMFGOf4",
+          "name": "Postgres account tennis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "  // Get prediction data from Update Prediction (2 nodes back)\n  const predictionData = $('Update Prediction').item.json;\n\n  // Just pass it through\n  return { json: predictionData };\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -736,
+        288
+      ],
+      "id": "c4b155b1-fb40-42e9-a4d6-bf50c0e04e3b",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE matches m\nSET prediction_id = p.prediction_id\nFROM predictions p\nWHERE m.player1 = p.player1\n  AND m.player2 = p.player2\n  AND m.tournament = p.tournament\n  AND m.match_date = CURRENT_DATE\n  AND m.prediction_id IS NULL\nRETURNING m.match_unique_id, m.prediction_id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -960,
+        288
+      ],
+      "id": "ce170bb3-d370-4d52-9040-903447032fab",
+      "name": "Link Match to Prediction",
+      "credentials": {
+        "postgres": {
+          "id": "DdZZnEL2dpMFGOf4",
+          "name": "Postgres account tennis"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "  const analysis = $('Extract LLM Response').first().json;\n\n  // Helper function to escape single quotes for SQL\n  function escapeSql(str) {\n    if (!str) return '';\n    return str.toString().replace(/'/g, \"''\");\n  }\n\n  // Extract player-specific insights from LLM response\n  const playerInsights = [];\n\n  if (analysis.player_specific_insights && analysis.player_specific_insights.length > 0) {\n    analysis.player_specific_insights.forEach(insight => {\n      // Build supporting data object\n      const supportingData = insight.supporting_data || {};\n\n      playerInsights.push({\n        json: {\n          player_name: escapeSql(insight.player_name),\n          insight_type: insight.insight_type,\n          insight_description: escapeSql(insight.description),\n          confidence: insight.confidence || 60,\n          supporting_data: JSON.stringify({\n            affected_predictions: insight.affected_predictions,\n            recommendation: insight.recommendation,\n            ...supportingData  // Include score, odds, etc.\n          }).replace(/'/g, \"''\"),\n          discovered_date: new Date().toISOString().split('T')[0]\n        }\n      });\n    });\n  }\n\n  // Return insights or skip marker if none found\n  return playerInsights.length > 0 ? playerInsights : [{ json: { skip: true } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        256
+      ],
+      "id": "6e067639-967f-4d89-9d7f-fadc46815211",
+      "name": "Extract Player Insights"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "34f29d74-788e-4ea7-a15c-a6dcda524f44",
+              "leftValue": "={{ $json.insight_type }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        688,
+        256
+      ],
+      "id": "749c4ea9-cd58-4b4d-92de-5d6e1e7313ab",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "  INSERT INTO player_insights (\n    player_name,\n    insight_type,\n    insight_description,\n    confidence,\n    supporting_data,\n    discovered_date,\n    is_active\n  )\n  VALUES (\n    '{{ $json.player_name }}',\n    '{{ $json.insight_type }}',\n    '{{ $json.insight_description }}',\n    {{ $json.confidence }},\n    '{{ $json.supporting_data }}'::jsonb,\n    '{{ $json.discovered_date }}',\n    true\n  )\n  ON CONFLICT (player_name, insight_type)\n  DO UPDATE SET\n    insight_description = EXCLUDED.insight_description,\n    confidence = EXCLUDED.confidence,\n    supporting_data = EXCLUDED.supporting_data,\n    discovered_date = EXCLUDED.discovered_date,\n    last_validated = CURRENT_DATE,\n    updated_at = NOW();\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        896,
+        176
+      ],
+      "id": "4c718d31-85f8-461d-90e6-b7cc6e005592",
+      "name": "Store Player Insights",
+      "credentials": {
+        "postgres": {
+          "id": "DdZZnEL2dpMFGOf4",
+          "name": "Postgres account tennis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0340f9f4-1e65-4cd1-9de5-8f6c962a40fb",
+              "leftValue": "={{ $json.prediction_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "number",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2384,
+        288
+      ],
+      "id": "467795e3-97a5-4935-97e3-f6e7d25b763d",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "  -- Update player statistics for both players in the match\n  WITH match_data AS (\n    SELECT\n      player1,\n      player2,\n      winner,\n      surface,\n      odds_player1,\n      odds_player2,\n      match_date,\n      is_upset,\n      favorite\n    FROM matches\n    WHERE tournament = '{{ $('Loop Over Items').item.json.tournament }}'\n      AND player1 = '{{ $('Loop Over Items').item.json.player1 }}'\n      AND player2 = '{{ $('Loop Over Items').item.json.player2 }}'\n      AND match_date = '{{ $('Loop Over Items').item.json.match_date }}'\n    LIMIT 1\n  ),\n  player1_update AS (\n    INSERT INTO players (player_name, nationality, first_seen_date)\n    VALUES (\n      (SELECT player1 FROM match_data),\n      '{{ $('Loop Over Items').item.json.player1_nationality }}',\n      CURRENT_DATE\n    )\n    ON CONFLICT (player_name) DO NOTHING\n    RETURNING player_name\n  ),\n  player2_update AS (\n    INSERT INTO players (player_name, nationality, first_seen_date)\n    VALUES (\n      (SELECT player2 FROM match_data),\n      '{{ $('Loop Over Items').item.json.player2_nationality }}',\n      CURRENT_DATE\n    )\n    ON CONFLICT (player_name) DO NOTHING\n    RETURNING player_name\n  )\n  -- Update Player 1 stats\n  UPDATE players p\n  SET\n    total_matches = (\n      SELECT COUNT(*) FROM matches m\n      WHERE m.player1 = p.player_name OR m.player2 = p.player_name\n    ),\n    total_wins = (\n      SELECT COUNT(*) FROM matches m\n      WHERE m.winner = p.player_name\n    ),\n    total_losses = (\n      SELECT COUNT(*) FROM matches m\n      WHERE (m.player1 = p.player_name OR m.player2 = p.player_name)\n      AND m.winner != p.player_name\n    ),\n    win_rate_overall = ROUND(\n      (SELECT COUNT(*)::numeric FROM matches m WHERE m.winner = p.player_name) /\n      NULLIF((SELECT COUNT(*) FROM matches m WHERE m.player1 = p.player_name OR m.player2 = p.player_name), 0) * 100,\n      2\n    ),\n    matches_clay = (\n      SELECT COUNT(*) FROM matches m\n      WHERE (m.player1 = p.player_name OR m.player2 = p.player_name)\n      AND m.surface = 'Clay'\n    ),\n    matches_hard = (\n      SELECT COUNT(*) FROM matches m\n      WHERE (m.player1 = p.player_name OR m.player2 = p.player_name)\n      AND m.surface = 'Hard'\n    ),\n    matches_grass = (\n      SELECT COUNT(*) FROM matches m\n      WHERE (m.player1 = p.player_name OR m.player2 = p.player_name)\n      AND m.surface = 'Grass'\n    ),\n    win_rate_clay = ROUND(\n      (SELECT COUNT(*)::numeric FROM matches m WHERE m.winner = p.player_name AND m.surface = 'Clay') /\n      NULLIF((SELECT COUNT(*) FROM matches m WHERE (m.player1 = p.player_name OR m.player2 = p.player_name) AND m.surface = 'Clay'), 0) * 100,\n      2\n    ),\n    win_rate_hard = ROUND(\n      (SELECT COUNT(*)::numeric FROM matches m WHERE m.winner = p.player_name AND m.surface = 'Hard') /\n      NULLIF((SELECT COUNT(*) FROM matches m WHERE (m.player1 = p.player_name OR m.player2 = p.player_name) AND m.surface = 'Hard'), 0) * 100,\n      2\n    ),\n    win_rate_grass = ROUND(\n      (SELECT COUNT(*)::numeric FROM matches m WHERE m.winner = p.player_name AND m.surface = 'Grass') /\n      NULLIF((SELECT COUNT(*) FROM matches m WHERE (m.player1 = p.player_name OR m.player2 = p.player_name) AND m.surface = 'Grass'), 0) * 100,\n      2\n    ),\n    upset_wins_count = (\n      SELECT COUNT(*) FROM matches m\n      WHERE m.winner = p.player_name AND m.is_upset = true\n    ),\n    upset_losses_count = (\n      SELECT COUNT(*) FROM matches m\n      WHERE (m.player1 = p.player_name OR m.player2 = p.player_name)\n      AND m.winner != p.player_name AND m.is_upset = true\n    ),\n    favorite_wins_count = (\n      SELECT COUNT(*) FROM matches m\n      WHERE m.winner = p.player_name AND m.favorite = p.player_name\n    ),\n    favorite_losses_count = (\n      SELECT COUNT(*) FROM matches m\n      WHERE m.favorite = p.player_name AND m.winner != p.player_name\n    ),\n    giant_killer_score = ROUND(\n      (SELECT COUNT(*)::numeric FROM matches m WHERE m.winner = p.player_name AND m.is_upset = true) * 10.0 /\n      NULLIF((SELECT COUNT(*) FROM matches m WHERE m.player1 = p.player_name OR m.player2 = p.player_name), 0),\n      2\n    ),\n    avg_odds_when_winning = ROUND(\n      (SELECT AVG(CASE\n        WHEN m.winner = m.player1 AND p.player_name = m.player1 THEN m.odds_player1\n        WHEN m.winner = m.player2 AND p.player_name = m.player2 THEN m.odds_player2\n      END) FROM matches m WHERE m.winner = p.player_name),\n      2\n    ),\n    avg_odds_when_losing = ROUND(\n      (SELECT AVG(CASE\n        WHEN m.winner != m.player1 AND p.player_name = m.player1 THEN m.odds_player1\n        WHEN m.winner != m.player2 AND p.player_name = m.player2 THEN m.odds_player2\n      END) FROM matches m WHERE (m.player1 = p.player_name OR m.player2 = p.player_name) AND m.winner != p.player_name),\n      2\n    ),\n    vs_favorites_win_rate = ROUND(\n      (SELECT COUNT(*)::numeric FROM matches m\n       WHERE m.winner = p.player_name\n       AND m.favorite != p.player_name) /\n      NULLIF((SELECT COUNT(*) FROM matches m\n              WHERE (m.player1 = p.player_name OR m.player2 = p.player_name)\n              AND m.favorite != p.player_name), 0) * 100,\n      2\n    ),\n    vs_underdogs_win_rate = ROUND(\n      (SELECT COUNT(*)::numeric FROM matches m\n       WHERE m.winner = p.player_name\n       AND m.favorite = p.player_name) /\n      NULLIF((SELECT COUNT(*) FROM matches m\n              WHERE (m.player1 = p.player_name OR m.player2 = p.player_name)\n              AND m.favorite = p.player_name), 0) * 100,\n      2\n    ),\n    recent_form_last_5 = (\n      SELECT STRING_AGG(\n        CASE WHEN m.winner = p.player_name THEN 'W' ELSE 'L' END,\n        ''\n        ORDER BY m.match_date DESC\n      )\n      FROM (\n        SELECT * FROM matches m\n        WHERE m.player1 = p.player_name OR m.player2 = p.player_name\n        ORDER BY m.match_date DESC\n        LIMIT 5\n      ) m\n    ),\n    recent_form_last_10 = (\n      SELECT STRING_AGG(\n        CASE WHEN m.winner = p.player_name THEN 'W' ELSE 'L' END,\n        ''\n        ORDER BY m.match_date DESC\n      )\n      FROM (\n        SELECT * FROM matches m\n        WHERE m.player1 = p.player_name OR m.player2 = p.player_name\n        ORDER BY m.match_date DESC\n        LIMIT 10\n      ) m\n    ),\n    wins_last_5 = (\n      SELECT COUNT(*) FROM (\n        SELECT * FROM matches m\n        WHERE (m.player1 = p.player_name OR m.player2 = p.player_name)\n        ORDER BY m.match_date DESC\n        LIMIT 5\n      ) m WHERE m.winner = p.player_name\n    ),\n    wins_last_10 = (\n      SELECT COUNT(*) FROM (\n        SELECT * FROM matches m\n        WHERE (m.player1 = p.player_name OR m.player2 = p.player_name)\n        ORDER BY m.match_date DESC\n        LIMIT 10\n      ) m WHERE m.winner = p.player_name\n    ),\n    momentum_score = ROUND(\n      (SELECT COUNT(*)::numeric FROM (\n        SELECT * FROM matches m\n        WHERE (m.player1 = p.player_name OR m.player2 = p.player_name)\n        ORDER BY m.match_date DESC\n        LIMIT 5\n      ) m WHERE m.winner = p.player_name) * 2.0,\n      2\n    ),\n    last_match_date = (\n      SELECT MAX(m.match_date) FROM matches m\n      WHERE m.player1 = p.player_name OR m.player2 = p.player_name\n    ),\n    total_tournaments = (\n      SELECT COUNT(DISTINCT m.tournament) FROM matches m\n      WHERE m.player1 = p.player_name OR m.player2 = p.player_name\n    ),\n    last_updated = NOW()\n  WHERE p.player_name IN (\n    SELECT player1 FROM match_data\n    UNION\n    SELECT player2 FROM match_data\n  )\n  RETURNING player_name, total_matches, total_wins, win_rate_overall;\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1552,
+        288
+      ],
+      "id": "35598714-4bcf-4872-9963-5a6e28e6f009",
+      "name": "Update Player Statistics",
+      "credentials": {
+        "postgres": {
+          "id": "DdZZnEL2dpMFGOf4",
+          "name": "Postgres account tennis"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1360,
+        240
+      ],
+      "id": "dfd4fb11-f4e9-4fe3-9e0d-e8a0c8db0bf5",
+      "name": "Merge"
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "193.24.209.9:5678",
+            "user-agent": "curl/8.5.0",
+            "accept": "*/*",
+            "content-type": "application/json",
+            "content-length": "70628"
+          },
+          "params": {},
+          "query": {},
+          "body": [
+            {
+              "tournament": "Athens (Greece), hard (indoor)",
+              "country": "Greece",
+              "surface": "Hard",
+              "player1": "McDonald M.",
+              "nationality1": "USA",
+              "player2": "Etcheverry T. M.",
+              "nationality2": "Argentina",
+              "odds1": "2.10",
+              "odds2": "1.70",
+              "score": "7-6 6-7 3-6",
+              "winner": "Etcheverry T. M.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Athens (Greece), hard (indoor)",
+              "country": "Greece",
+              "surface": "Hard",
+              "player1": "Hanfmann Y.",
+              "nationality1": "Germany",
+              "player2": "Ivanov I.",
+              "nationality2": "Bulgaria",
+              "odds1": "1.06",
+              "odds2": "8.25",
+              "score": "6-4 6-2",
+              "winner": "Hanfmann Y.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Athens (Greece), hard (indoor)",
+              "country": "Greece",
+              "surface": "Hard",
+              "player1": "Giron M.",
+              "nationality1": "USA",
+              "player2": "Martinez P.",
+              "nationality2": "Spain",
+              "odds1": "1.24",
+              "odds2": "4.00",
+              "score": "6-4 6-1",
+              "winner": "Giron M.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Athens (Greece), hard (indoor)",
+              "country": "Greece",
+              "surface": "Hard",
+              "player1": "Korda S.",
+              "nationality1": "USA",
+              "player2": "Dzumhur D.",
+              "nationality2": "Bosnia and Herzegovina",
+              "odds1": "1.26",
+              "odds2": "3.70",
+              "score": "4-6 6-3 6-3",
+              "winner": "Korda S.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Athens (Greece), hard (indoor)",
+              "country": "Greece",
+              "surface": "Hard",
+              "player1": "Djokovic N.",
+              "nationality1": "Serbia",
+              "player2": "Tabilo A.",
+              "nationality2": "Chile",
+              "odds1": "1.22",
+              "odds2": "4.20",
+              "score": "7-6 6-1",
+              "winner": "Djokovic N.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Athens (Greece), hard (indoor)",
+              "country": "Greece",
+              "surface": "Hard",
+              "player1": "Spizzirri E.",
+              "nationality1": "USA",
+              "player2": "Borges N.",
+              "nationality2": "Portugal",
+              "odds1": "2.20",
+              "odds2": "1.65",
+              "score": "7-5 3-6 4-6",
+              "winner": "Borges N.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Metz (France), hard (indoor)",
+              "country": "France",
+              "surface": "Hard",
+              "player1": "Jacquet K.",
+              "nationality1": "France",
+              "player2": "van Assche L.",
+              "nationality2": "France",
+              "odds1": "2.35",
+              "odds2": "1.57",
+              "score": "4-6 6-3 6-4",
+              "winner": "Jacquet K.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Metz (France), hard (indoor)",
+              "country": "France",
+              "surface": "Hard",
+              "player1": "Altmaier D.",
+              "nationality1": "Germany",
+              "player2": "Rinderknech A.",
+              "nationality2": "France",
+              "odds1": "2.45",
+              "odds2": "1.53",
+              "score": "6-4 6-4",
+              "winner": "Altmaier D.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Metz (France), hard (indoor)",
+              "country": "France",
+              "surface": "Hard",
+              "player1": "Passaro F.",
+              "nationality1": "Italy",
+              "player2": "Blockx A.",
+              "nationality2": "Belgium",
+              "odds1": "2.54",
+              "odds2": "1.50",
+              "score": "6-3 3-6 4-6",
+              "winner": "Blockx A.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Metz (France), hard (indoor)",
+              "country": "France",
+              "surface": "Hard",
+              "player1": "Moutet C.",
+              "nationality1": "France",
+              "player2": "Vukic A.",
+              "nationality2": "Australia",
+              "odds1": "1.26",
+              "odds2": "3.70",
+              "score": "6-3 6-7 6-7",
+              "winner": "Vukic A.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Metz (France), hard (indoor)",
+              "country": "France",
+              "surface": "Hard",
+              "player1": "Cobolli F.",
+              "nationality1": "Italy",
+              "player2": "Sonego L.",
+              "nationality2": "Italy",
+              "odds1": "1.70",
+              "odds2": "2.10",
+              "score": "6-2 3-6 5-7",
+              "winner": "Sonego L.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Metz (France), hard (indoor)",
+              "country": "France",
+              "surface": "Hard",
+              "player1": "Cazaux A.",
+              "nationality1": "France",
+              "player2": "Norrie C.",
+              "nationality2": "United Kingdom",
+              "odds1": "2.10",
+              "odds2": "1.70",
+              "score": "7-6 6-7 2-6",
+              "winner": "Norrie C.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Finals - Riyadh (World), hard (indoor)",
+              "country": "World",
+              "surface": "Hard",
+              "player1": "Gauff C.",
+              "nationality1": "USA",
+              "player2": "Paolini J.",
+              "nationality2": "Italy",
+              "odds1": "1.45",
+              "odds2": "2.70",
+              "score": "6-3 6-2",
+              "winner": "Gauff C.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Finals - Riyadh (World), hard (indoor)",
+              "country": "World",
+              "surface": "Hard",
+              "player1": "Sabalenka A.",
+              "nationality1": "World",
+              "player2": "Pegula J.",
+              "nationality2": "USA",
+              "odds1": "1.28",
+              "odds2": "3.60",
+              "score": "6-4 2-6 6-3",
+              "winner": "Sabalenka A.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Helsinki (Finland), hard (indoor)",
+              "country": "Finland",
+              "surface": "Hard",
+              "player1": "Lajovic D.",
+              "nationality1": "Serbia",
+              "player2": "Dodig M.",
+              "nationality2": "Croatia",
+              "odds1": "1.90",
+              "odds2": "1.80",
+              "score": "3-6 6-7",
+              "winner": "Dodig M.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Helsinki (Finland), hard (indoor)",
+              "country": "Finland",
+              "surface": "Hard",
+              "player1": "Butvilas E.",
+              "nationality1": "Lithuania",
+              "player2": "Nardi L.",
+              "nationality2": "Italy",
+              "odds1": "2.00",
+              "odds2": "1.72",
+              "score": "4-6 2-6",
+              "winner": "Nardi L.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Helsinki (Finland), hard (indoor)",
+              "country": "Finland",
+              "surface": "Hard",
+              "player1": "Gueymard Wayenburg S.",
+              "nationality1": "France",
+              "player2": "Gojo B.",
+              "nationality2": "Croatia",
+              "odds1": "2.45",
+              "odds2": "1.48",
+              "score": "3-6 7-6 6-4",
+              "winner": "Gueymard Wayenburg S.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Helsinki (Finland), hard (indoor)",
+              "country": "Finland",
+              "surface": "Hard",
+              "player1": "Rodesch C.",
+              "nationality1": "Luxembourg",
+              "player2": "Engel J.",
+              "nationality2": "Germany",
+              "odds1": "1.83",
+              "odds2": "1.87",
+              "score": "6-4 6-7 6-4",
+              "winner": "Rodesch C.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Helsinki (Finland), hard (indoor)",
+              "country": "Finland",
+              "surface": "Hard",
+              "player1": "Mikrut L.",
+              "nationality1": "Croatia",
+              "player2": "Vasa E.",
+              "nationality2": "Finland",
+              "odds1": "1.26",
+              "odds2": "3.50",
+              "score": "5-7 1-6",
+              "winner": "Vasa E.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Helsinki (Finland), hard (indoor)",
+              "country": "Finland",
+              "surface": "Hard",
+              "player1": "Kypson P.",
+              "nationality1": "USA",
+              "player2": "Blancaneaux G.",
+              "nationality2": "France",
+              "odds1": "1.26",
+              "odds2": "3.50",
+              "score": "5-7 6-1 6-3",
+              "winner": "Kypson P.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Helsinki (Finland), hard (indoor)",
+              "country": "Finland",
+              "surface": "Hard",
+              "player1": "Durasovic V.",
+              "nationality1": "Norway",
+              "player2": "Cina F.",
+              "nationality2": "Italy",
+              "odds1": "2.75",
+              "odds2": "1.40",
+              "score": "7-6 6-4",
+              "winner": "Durasovic V.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Helsinki (Finland), hard (indoor)",
+              "country": "Finland",
+              "surface": "Hard",
+              "player1": "Ruusuvuori E.",
+              "nationality1": "Finland",
+              "player2": "Neumayer L.",
+              "nationality2": "Austria",
+              "odds1": "1.30",
+              "odds2": "3.25",
+              "score": "6-4 7-6",
+              "winner": "Ruusuvuori E.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Helsinki (Finland), hard (indoor)",
+              "country": "Finland",
+              "surface": "Hard",
+              "player1": "Coppejans K.",
+              "nationality1": "Belgium",
+              "player2": "Holt B.",
+              "nationality2": "USA",
+              "odds1": "2.20",
+              "odds2": "1.60",
+              "score": "6-4 3-6 7-5",
+              "winner": "Coppejans K.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Helsinki (Finland), hard (indoor)",
+              "country": "Finland",
+              "surface": "Hard",
+              "player1": "Travaglia S.",
+              "nationality1": "Italy",
+              "player2": "Parker S.",
+              "nationality2": "United Kingdom",
+              "odds1": "1.72",
+              "odds2": "2.00",
+              "score": "6-3 6-4",
+              "winner": "Travaglia S.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Knoxville (USA), hard (indoor)",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Roh H.",
+              "nationality1": "South Korea",
+              "player2": "Krueger M.",
+              "nationality2": "USA",
+              "odds1": "5.25",
+              "odds2": "1.12",
+              "score": "2-6 3-6",
+              "winner": "Krueger M.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Knoxville (USA), hard (indoor)",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Perez A.",
+              "nationality1": "USA",
+              "player2": "Fenty A.",
+              "nationality2": "USA",
+              "odds1": "1.55",
+              "odds2": "2.30",
+              "score": "6-4 6-3",
+              "winner": "Perez A.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Knoxville (USA), hard (indoor)",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Stebe C.",
+              "nationality1": "Germany",
+              "player2": "Rybakov A.",
+              "nationality2": "USA",
+              "odds1": "1.80",
+              "odds2": "1.91",
+              "score": "6-7 7-6 6-0",
+              "winner": "Stebe C.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Knoxville (USA), hard (indoor)",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Trotter J. K.",
+              "nationality1": "Japan",
+              "player2": "Broom C.",
+              "nationality2": "United Kingdom",
+              "odds1": "1.53",
+              "odds2": "2.35",
+              "score": "6-4 1-6 7-6",
+              "winner": "Trotter J. K.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Knoxville (USA), hard (indoor)",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Mitsui S.",
+              "nationality1": "Japan",
+              "player2": "Suresh D.",
+              "nationality2": "India",
+              "odds1": "2.05",
+              "odds2": "1.70",
+              "score": "7-6 7-6",
+              "winner": "Mitsui S.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Knoxville (USA), hard (indoor)",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Kotzen A.",
+              "nationality1": "USA",
+              "player2": "Blanch Dar.",
+              "nationality2": "USA",
+              "odds1": "2.95",
+              "odds2": "1.35",
+              "score": "4-6 2-6",
+              "winner": "Blanch Dar.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Knoxville (USA), hard (indoor)",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Glinka D.",
+              "nationality1": "Estonia",
+              "player2": "Makk P.",
+              "nationality2": "Hungary",
+              "odds1": "1.21",
+              "odds2": "3.90",
+              "score": "6-2 6-4",
+              "winner": "Glinka D.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Knoxville (USA), hard (indoor)",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Rocha F.",
+              "nationality1": "Portugal",
+              "player2": "Clarke J.",
+              "nationality2": "United Kingdom",
+              "odds1": "3.20",
+              "odds2": "1.30",
+              "score": "1-6 4-6",
+              "winner": "Clarke J.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Knoxville (USA), hard (indoor)",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Soto M.",
+              "nationality1": "Chile",
+              "player2": "Cassone M.",
+              "nationality2": "USA",
+              "odds1": "4.00",
+              "odds2": "1.21",
+              "score": "3-6 2-6",
+              "winner": "Cassone M.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Knoxville (USA), hard (indoor)",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Mejia N.",
+              "nationality1": "Colombia",
+              "player2": "Thanos A.",
+              "nationality2": "Greece",
+              "odds1": "1.55",
+              "odds2": "2.30",
+              "score": "6-4 7-5",
+              "winner": "Mejia N.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Lima 2 (Peru), clay",
+              "country": "Peru",
+              "surface": "Clay",
+              "player1": "Habib H.",
+              "nationality1": "Lebanon",
+              "player2": "Vallejo D.",
+              "nationality2": "Paraguay",
+              "odds1": "2.70",
+              "odds2": "1.40",
+              "score": "7-6 7-6",
+              "winner": "Habib H.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Lima 2 (Peru), clay",
+              "country": "Peru",
+              "surface": "Clay",
+              "player1": "Guillen Meza A.",
+              "nationality1": "Ecuador",
+              "player2": "Boyer T.",
+              "nationality2": "USA",
+              "odds1": "1.90",
+              "odds2": "1.80",
+              "score": "1-6 6-2 6-4",
+              "winner": "Guillen Meza A.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Lima 2 (Peru), clay",
+              "country": "Peru",
+              "surface": "Clay",
+              "player1": "Kestelboim M.",
+              "nationality1": "Argentina",
+              "player2": "Kicker N.",
+              "nationality2": "Argentina",
+              "odds1": "2.60",
+              "odds2": "1.44",
+              "score": "3-6 2-6",
+              "winner": "Kicker N.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Lima 2 (Peru), clay",
+              "country": "Peru",
+              "surface": "Clay",
+              "player1": "Skatov T.",
+              "nationality1": "Kazakhstan",
+              "player2": "Garin C.",
+              "nationality2": "Chile",
+              "odds1": "2.65",
+              "odds2": "1.42",
+              "score": "1-6 2-6",
+              "winner": "Garin C.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Lima 2 (Peru), clay",
+              "country": "Peru",
+              "surface": "Clay",
+              "player1": "Torres J. B.",
+              "nationality1": "Argentina",
+              "player2": "Prado Angelo J. C.",
+              "nationality2": "Bolivia",
+              "odds1": "2.10",
+              "odds2": "1.65",
+              "score": "7-6 6-3",
+              "winner": "Torres J. B.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Lima 2 (Peru), clay",
+              "country": "Peru",
+              "surface": "Clay",
+              "player1": "Navone M.",
+              "nationality1": "Argentina",
+              "player2": "Dellien Velasco M. A.",
+              "nationality2": "Bolivia",
+              "odds1": "1.10",
+              "odds2": "5.75",
+              "score": "2-6 6-7",
+              "winner": "Dellien Velasco M. A.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Lima 2 (Peru), clay",
+              "country": "Peru",
+              "surface": "Clay",
+              "player1": "Burruchaga R. A.",
+              "nationality1": "Argentina",
+              "player2": "Cecchinato M.",
+              "nationality2": "Italy",
+              "odds1": "1.22",
+              "odds2": "3.80",
+              "score": "2-6 6-0 6-3",
+              "winner": "Burruchaga R. A.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Lima 2 (Peru), clay",
+              "country": "Peru",
+              "surface": "Clay",
+              "player1": "Roncadelli F.",
+              "nationality1": "Uruguay",
+              "player2": "Barrena A.",
+              "nationality2": "Argentina",
+              "odds1": "3.20",
+              "odds2": "1.30",
+              "score": "4-6 4-6",
+              "winner": "Barrena A.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Lima 2 (Peru), clay",
+              "country": "Peru",
+              "surface": "Clay",
+              "player1": "Gomez F. A.",
+              "nationality1": "Argentina",
+              "player2": "Varillas J. P.",
+              "nationality2": "Peru",
+              "odds1": "1.87",
+              "odds2": "1.83",
+              "score": "6-7 6-3 6-7",
+              "winner": "Varillas J. P.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Lima 2 (Peru), clay",
+              "country": "Peru",
+              "surface": "Clay",
+              "player1": "Gakhov I.",
+              "nationality1": "World",
+              "player2": "Huertas Del Pino Cordova A.",
+              "nationality2": "Peru",
+              "odds1": "1.18",
+              "odds2": "4.20",
+              "score": "6-3 4-6 6-3",
+              "winner": "Gakhov I.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Lima 2 (Peru), clay",
+              "country": "Peru",
+              "surface": "Clay",
+              "player1": "Gaubas V.",
+              "nationality1": "Lithuania",
+              "player2": "Bueno G.",
+              "nationality2": "Peru",
+              "odds1": "1.50",
+              "odds2": "2.40",
+              "score": "4-6 3-6",
+              "winner": "Bueno G.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Matsuyama (Japan), hard",
+              "country": "Japan",
+              "surface": "Hard",
+              "player1": "Bouzige M.",
+              "nationality1": "Australia",
+              "player2": "Tokuda R.",
+              "nationality2": "Japan",
+              "odds1": "3.20",
+              "odds2": "1.30",
+              "score": "2-3",
+              "winner": "Tokuda R.",
+              "homeSetScore": "0",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Matsuyama (Japan), hard",
+              "country": "Japan",
+              "surface": "Hard",
+              "player1": "Kuzmanov D.",
+              "nationality1": "Bulgaria",
+              "player2": "Ajdukovic D.",
+              "nationality2": "Croatia",
+              "odds1": "1.90",
+              "odds2": "1.80",
+              "score": "1-6 3-6",
+              "winner": "Ajdukovic D.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Matsuyama (Japan), hard",
+              "country": "Japan",
+              "surface": "Hard",
+              "player1": "Sekulic P.",
+              "nationality1": "Australia",
+              "player2": "Chung H.",
+              "nationality2": "South Korea",
+              "odds1": "1.62",
+              "odds2": "2.15",
+              "score": "6-4 6-3",
+              "winner": "Sekulic P.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Matsuyama (Japan), hard",
+              "country": "Japan",
+              "surface": "Hard",
+              "player1": "Takahashi Y.",
+              "nationality1": "Japan",
+              "player2": "Noguchi R.",
+              "nationality2": "Japan",
+              "odds1": "2.40",
+              "odds2": "1.50",
+              "score": "5-7 4-6",
+              "winner": "Noguchi R.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Matsuyama (Japan), hard",
+              "country": "Japan",
+              "surface": "Hard",
+              "player1": "Basing M.",
+              "nationality1": "United Kingdom",
+              "player2": "Matsuda R.",
+              "nationality2": "Japan",
+              "odds1": "1.15",
+              "odds2": "4.75",
+              "score": "6-3 1-6 6-2",
+              "winner": "Basing M.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Matsuyama (Japan), hard",
+              "country": "Japan",
+              "surface": "Hard",
+              "player1": "Matsuda K.",
+              "nationality1": "Japan",
+              "player2": "Shelbayh A.",
+              "nationality2": "Jordan",
+              "odds1": "4.20",
+              "odds2": "1.19",
+              "score": "7-6 6-2",
+              "winner": "Matsuda K.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Matsuyama (Japan), hard",
+              "country": "Japan",
+              "surface": "Hard",
+              "player1": "Shiraishi H.",
+              "nationality1": "Japan",
+              "player2": "Grenier H.",
+              "nationality2": "France",
+              "odds1": "4.10",
+              "odds2": "1.20",
+              "score": "4-6 4-6",
+              "winner": "Grenier H.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Matsuyama (Japan), hard",
+              "country": "Japan",
+              "surface": "Hard",
+              "player1": "Kusuhara Y.",
+              "nationality1": "Japan",
+              "player2": "Ferreira Silva F.",
+              "nationality2": "Portugal",
+              "odds1": "6.50",
+              "odds2": "1.08",
+              "score": "6-7 7-6 3-6",
+              "winner": "Ferreira Silva F.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Matsuyama (Japan), hard",
+              "country": "Japan",
+              "surface": "Hard",
+              "player1": "Kumasaka T.",
+              "nationality1": "Japan",
+              "player2": "Peniston R.",
+              "nationality2": "United Kingdom",
+              "odds1": "3.50",
+              "odds2": "1.26",
+              "score": "0-6 1-6",
+              "winner": "Peniston R.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Matsuyama (Japan), hard",
+              "country": "Japan",
+              "surface": "Hard",
+              "player1": "Bigun K.",
+              "nationality1": "USA",
+              "player2": "Uchiyama Y.",
+              "nationality2": "Japan",
+              "odds1": "3.50",
+              "odds2": "1.26",
+              "score": "4-6 4-6",
+              "winner": "Uchiyama Y.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Matsuyama (Japan), hard",
+              "country": "Japan",
+              "surface": "Hard",
+              "player1": "Shin S.",
+              "nationality1": "South Korea",
+              "player2": "Nakagawa S.",
+              "nationality2": "Japan",
+              "odds1": "1.40",
+              "odds2": "2.75",
+              "score": "6-2 5-7 3-6",
+              "winner": "Nakagawa S.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Matsuyama (Japan), hard",
+              "country": "Japan",
+              "surface": "Hard",
+              "player1": "Shimabukuro S.",
+              "nationality1": "Japan",
+              "player2": "Mochizuki Y.",
+              "nationality2": "Japan",
+              "odds1": "1.10",
+              "odds2": "5.75",
+              "score": "6-4 6-2",
+              "winner": "Shimabukuro S.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Taipei (Taiwan), hard",
+              "country": "Taiwan",
+              "surface": "Hard",
+              "player1": "Samrej K.",
+              "nationality1": "Thailand",
+              "player2": "Santillan A.",
+              "nationality2": "Japan",
+              "odds1": "1.95",
+              "odds2": "1.75",
+              "score": "3-6 6-7",
+              "winner": "Santillan A.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Taipei (Taiwan), hard",
+              "country": "Taiwan",
+              "surface": "Hard",
+              "player1": "Sasikumar M.",
+              "nationality1": "India",
+              "player2": "Uchida K.",
+              "nationality2": "Japan",
+              "odds1": "3.25",
+              "odds2": "1.30",
+              "score": "6-7 2-6",
+              "winner": "Uchida K.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Taipei (Taiwan), hard",
+              "country": "Taiwan",
+              "surface": "Hard",
+              "player1": "Rawat S.",
+              "nationality1": "India",
+              "player2": "Vrbensky M.",
+              "nationality2": "Czech Republic",
+              "odds1": "2.65",
+              "odds2": "1.42",
+              "score": "4-6 7-6 4-6",
+              "winner": "Vrbensky M.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Taipei (Taiwan), hard",
+              "country": "Taiwan",
+              "surface": "Hard",
+              "player1": "Ichikawa T.",
+              "nationality1": "Japan",
+              "player2": "Oberleitner N.",
+              "nationality2": "Austria",
+              "odds1": "2.55",
+              "odds2": "1.45",
+              "score": "3-6 4-6",
+              "winner": "Oberleitner N.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Taipei (Taiwan), hard",
+              "country": "Taiwan",
+              "surface": "Hard",
+              "player1": "Trongcharoenchaikul W.",
+              "nationality1": "Thailand",
+              "player2": "Imamura M.",
+              "nationality2": "Japan",
+              "odds1": "3.00",
+              "odds2": "1.34",
+              "score": "3-6 1-6",
+              "winner": "Imamura M.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Taipei (Taiwan), hard",
+              "country": "Taiwan",
+              "surface": "Hard",
+              "player1": "Gengel M.",
+              "nationality1": "Czech Republic",
+              "player2": "Shimizu Y.",
+              "nationality2": "Japan",
+              "odds1": "2.75",
+              "odds2": "1.40",
+              "score": "0-6 6-7",
+              "winner": "Shimizu Y.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Taipei (Taiwan), hard",
+              "country": "Taiwan",
+              "surface": "Hard",
+              "player1": "Hsu Y. H.",
+              "nationality1": "Taiwan",
+              "player2": "Lee K.",
+              "nationality2": "Taiwan",
+              "odds1": "1.18",
+              "odds2": "4.25",
+              "score": "6-3 3-6 6-0",
+              "winner": "Hsu Y. H.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Taipei (Taiwan), hard",
+              "country": "Taiwan",
+              "surface": "Hard",
+              "player1": "Janvier M.",
+              "nationality1": "France",
+              "player2": "Wu Tung-Lin",
+              "nationality2": "Taiwan",
+              "odds1": "2.25",
+              "odds2": "1.57",
+              "score": "4-6 6-3 7-6",
+              "winner": "Janvier M.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Taipei (Taiwan), hard",
+              "country": "Taiwan",
+              "surface": "Hard",
+              "player1": "Nam Ji S.",
+              "nationality1": "South Korea",
+              "player2": "Rodionov J.",
+              "nationality2": "Austria",
+              "odds1": "5.00",
+              "odds2": "1.14",
+              "score": "6-2 6-7 2-6",
+              "winner": "Rodionov J.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Taipei (Taiwan), hard",
+              "country": "Taiwan",
+              "surface": "Hard",
+              "player1": "Hazawa S.",
+              "nationality1": "Japan",
+              "player2": "Nishioka Y.",
+              "nationality2": "Japan",
+              "odds1": "15.00",
+              "odds2": "1.01",
+              "score": "4-6 3-6",
+              "winner": "Nishioka Y.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Austin (USA), hard",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Shymanovich I.",
+              "nationality1": "World",
+              "player2": "Cross K.",
+              "nationality2": "Canada",
+              "odds1": "1.67",
+              "odds2": "2.10",
+              "score": "6-2 2-6 1-6",
+              "winner": "Cross K.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Austin (USA), hard",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Hontama M.",
+              "nationality1": "Japan",
+              "player2": "Liu C.",
+              "nationality2": "USA",
+              "odds1": "2.60",
+              "odds2": "1.45",
+              "score": "6-4 2-6 3-6",
+              "winner": "Liu C.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Austin (USA), hard",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "McNeil C.",
+              "nationality1": "USA",
+              "player2": "Lepchenko V.",
+              "nationality2": "USA",
+              "odds1": "5.25",
+              "odds2": "1.14",
+              "score": "0-6 2-6",
+              "winner": "Lepchenko V.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Austin (USA), hard",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Jackson J.",
+              "nationality1": "USA",
+              "player2": "Lewis M.",
+              "nationality2": "USA",
+              "odds1": "2.75",
+              "odds2": "1.42",
+              "score": "1-6 3-6",
+              "winner": "Lewis M.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Austin (USA), hard",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Mandlik E.",
+              "nationality1": "USA",
+              "player2": "Wolff V.",
+              "nationality2": "USA",
+              "odds1": "1.48",
+              "odds2": "2.54",
+              "score": "6-2 6-1",
+              "winner": "Mandlik E.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Austin (USA), hard",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Brace C.",
+              "nationality1": "Canada",
+              "player2": "Gasanova A.",
+              "nationality2": "World",
+              "odds1": "2.15",
+              "odds2": "1.65",
+              "score": "6-3 5-7 2-6",
+              "winner": "Gasanova A.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Austin (USA), hard",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Jovic I.",
+              "nationality1": "USA",
+              "player2": "Friedsam A-L.",
+              "nationality2": "Germany",
+              "odds1": "1.22",
+              "odds2": "4.00",
+              "score": "6-2 6-1",
+              "winner": "Jovic I.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Austin (USA), hard",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Rapolu M.",
+              "nationality1": "USA",
+              "player2": "Parks A.",
+              "nationality2": "USA",
+              "odds1": "3.80",
+              "odds2": "1.24",
+              "score": "7-5 6-4",
+              "winner": "Rapolu M.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Austin (USA), hard",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Dolehide C.",
+              "nationality1": "USA",
+              "player2": "Stakusic M.",
+              "nationality2": "Canada",
+              "odds1": "2.00",
+              "odds2": "1.75",
+              "score": "1-6 4-6",
+              "winner": "Stakusic M.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Austin (USA), hard",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Sakatsume H.",
+              "nationality1": "Japan",
+              "player2": "Belgraver J.",
+              "nationality2": "France",
+              "odds1": "1.24",
+              "odds2": "3.80",
+              "score": "6-0 6-0",
+              "winner": "Sakatsume H.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Tucuman (Argentina), clay",
+              "country": "Argentina",
+              "surface": "Clay",
+              "player1": "Pieri J.",
+              "nationality1": "Italy",
+              "player2": "Urrutia M. F.",
+              "nationality2": "Argentina",
+              "odds1": "1.26",
+              "odds2": "3.60",
+              "score": "7-6 6-2",
+              "winner": "Pieri J.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Tucuman (Argentina), clay",
+              "country": "Argentina",
+              "surface": "Clay",
+              "player1": "Cinalli L. M.",
+              "nationality1": "Argentina",
+              "player2": "Zolotareva A.",
+              "nationality2": "World",
+              "odds1": "3.35",
+              "odds2": "1.28",
+              "score": "1-6 5-7",
+              "winner": "Zolotareva A.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Tucuman (Argentina), clay",
+              "country": "Argentina",
+              "surface": "Clay",
+              "player1": "Janicijevic S.",
+              "nationality1": "France",
+              "player2": "Smith T. N.",
+              "nationality2": "Australia",
+              "odds1": "1.60",
+              "odds2": "2.25",
+              "score": "3-6 2-6",
+              "winner": "Smith T. N.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Tucuman (Argentina), clay",
+              "country": "Argentina",
+              "surface": "Clay",
+              "player1": "Ce G.",
+              "nationality1": "Brazil",
+              "player2": "Fossa Huergo N.",
+              "nationality2": "Italy",
+              "odds1": "1.60",
+              "odds2": "2.20",
+              "score": "6-4 3-0",
+              "winner": "Ce G.",
+              "homeSetScore": "1",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Tucuman (Argentina), clay",
+              "country": "Argentina",
+              "surface": "Clay",
+              "player1": "Capurro Taborda M.",
+              "nationality1": "Argentina",
+              "player2": "Waltert S.",
+              "nationality2": "Switzerland",
+              "odds1": "8.25",
+              "odds2": "1.05",
+              "score": "1-6 2-6",
+              "winner": "Waltert S.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Tucuman (Argentina), clay",
+              "country": "Argentina",
+              "surface": "Clay",
+              "player1": "Monnet C.",
+              "nationality1": "France",
+              "player2": "Topalova G.",
+              "nationality2": "Bulgaria",
+              "odds1": "1.10",
+              "odds2": "6.25",
+              "score": "6-3 6-1",
+              "winner": "Monnet C.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Tucuman (Argentina), clay",
+              "country": "Argentina",
+              "surface": "Clay",
+              "player1": "Gorgodze E.",
+              "nationality1": "Georgia",
+              "player2": "Avanesyan E.",
+              "nationality2": "Armenia",
+              "odds1": "2.05",
+              "odds2": "1.72",
+              "score": "6-3 6-3",
+              "winner": "Gorgodze E.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Tucuman (Argentina), clay",
+              "country": "Argentina",
+              "surface": "Clay",
+              "player1": "Tran L.",
+              "nationality1": "Netherlands",
+              "player2": "Giovannini L.",
+              "nationality2": "Argentina",
+              "odds1": "6.50",
+              "odds2": "1.09",
+              "score": "1-6 0-6",
+              "winner": "Giovannini L.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Tucuman (Argentina), clay",
+              "country": "Argentina",
+              "surface": "Clay",
+              "player1": "Udvardy P.",
+              "nationality1": "Hungary",
+              "player2": "Papamichail D.",
+              "nationality2": "Greece",
+              "odds1": "1.30",
+              "odds2": "3.30",
+              "score": "4-6 4-6",
+              "winner": "Papamichail D.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Tucuman (Argentina), clay",
+              "country": "Argentina",
+              "surface": "Clay",
+              "player1": "Sierra S.",
+              "nationality1": "Argentina",
+              "player2": "Bulgaru M.",
+              "nationality2": "Romania",
+              "odds1": "1.15",
+              "odds2": "5.00",
+              "score": "6-3 7-5",
+              "winner": "Sierra S.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Tucuman (Argentina), clay",
+              "country": "Argentina",
+              "surface": "Clay",
+              "player1": "Pigossi L.",
+              "nationality1": "Brazil",
+              "player2": "Markus C.",
+              "nationality2": "Argentina",
+              "odds1": "1.10",
+              "odds2": "6.25",
+              "score": "6-7 2-6",
+              "winner": "Markus C.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "Tucuman (Argentina), clay",
+              "country": "Argentina",
+              "surface": "Clay",
+              "player1": "Vazquez C.",
+              "nationality1": "Argentina",
+              "player2": "Ortenzi J.",
+              "nationality2": "Argentina",
+              "odds1": "7.00",
+              "odds2": "1.08",
+              "score": "0-6 2-5 0-0",
+              "winner": "Ortenzi J.",
+              "homeSetScore": "0",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M15 Antalya 13 (Turkey), clay",
+              "country": "Turkey",
+              "surface": "Clay",
+              "player1": "Ovcharenko O.",
+              "nationality1": "Ukraine",
+              "player2": "Schlageter J.",
+              "nationality2": "Germany",
+              "odds1": "1.40",
+              "odds2": "2.65",
+              "score": "7-5 6-3",
+              "winner": "Ovcharenko O.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M15 Heraklion 13 (Greece), hard",
+              "country": "Greece",
+              "surface": "Hard",
+              "player1": "Rejchtman Vinciguerra W.",
+              "nationality1": "Sweden",
+              "player2": "Hopp M.",
+              "nationality2": "Germany",
+              "odds1": "2.05",
+              "odds2": "1.65",
+              "score": "2-6 6-7",
+              "winner": "Hopp M.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M15 Heraklion 13 (Greece), hard",
+              "country": "Greece",
+              "surface": "Hard",
+              "player1": "Vales A.",
+              "nationality1": "Israel",
+              "player2": "Castagnola L.",
+              "nationality2": "Italy",
+              "odds1": "1.83",
+              "odds2": "1.83",
+              "score": "6-3 5-7 6-4",
+              "winner": "Vales A.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M15 Heraklion 13 (Greece), hard",
+              "country": "Greece",
+              "surface": "Hard",
+              "player1": "Kopp S.",
+              "nationality1": "Austria",
+              "player2": "Murgett F.",
+              "nationality2": "United Kingdom",
+              "odds1": "1.20",
+              "odds2": "3.90",
+              "score": "6-1 6-4",
+              "winner": "Kopp S.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M15 Heraklion 13 (Greece), hard",
+              "country": "Greece",
+              "surface": "Hard",
+              "player1": "Xilas I.",
+              "nationality1": "Greece",
+              "player2": "Messis A.",
+              "nationality2": "Greece",
+              "odds1": "1.05",
+              "odds2": "7.25",
+              "score": "6-1 6-1",
+              "winner": "Xilas I.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M15 Heraklion 13 (Greece), hard",
+              "country": "Greece",
+              "surface": "Hard",
+              "player1": "Chopra K.",
+              "nationality1": "USA",
+              "player2": "Ghetu G.",
+              "nationality2": "Romania",
+              "odds1": "2.35",
+              "odds2": "1.50",
+              "score": "6-7 3-6",
+              "winner": "Ghetu G.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M15 Manama (Bahrain), hard",
+              "country": "Bahrain",
+              "surface": "Hard",
+              "player1": "Bilozertsev N.",
+              "nationality1": "Ukraine",
+              "player2": "Ozolins K.",
+              "nationality2": "Latvia",
+              "odds1": "2.25",
+              "odds2": "1.55",
+              "score": "5-7 2-6",
+              "winner": "Ozolins K.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M15 Manama (Bahrain), hard",
+              "country": "Bahrain",
+              "surface": "Hard",
+              "player1": "Kuperstein A.",
+              "nationality1": "USA",
+              "player2": "Pieczkowski O.",
+              "nationality2": "Poland",
+              "odds1": "3.90",
+              "odds2": "1.20",
+              "score": "4-6 3-6",
+              "winner": "Pieczkowski O.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M15 Manama (Bahrain), hard",
+              "country": "Bahrain",
+              "surface": "Hard",
+              "player1": "Stice T.",
+              "nationality1": "USA",
+              "player2": "Nesterov P.",
+              "nationality2": "Bulgaria",
+              "odds1": "3.75",
+              "odds2": "1.21",
+              "score": "4-6 2-6",
+              "winner": "Nesterov P.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M15 Manama (Bahrain), hard",
+              "country": "Bahrain",
+              "surface": "Hard",
+              "player1": "Habib A.",
+              "nationality1": "United Kingdom",
+              "player2": "Tylek P.",
+              "nationality2": "Canada",
+              "odds1": "1.05",
+              "odds2": "7.25",
+              "score": "3-6 6-4 6-4",
+              "winner": "Habib A.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M15 Manama (Bahrain), hard",
+              "country": "Bahrain",
+              "surface": "Hard",
+              "player1": "Hussey G.",
+              "nationality1": "United Kingdom",
+              "player2": "Alhogbani A. F.",
+              "nationality2": "Saudi Arabia",
+              "odds1": "1.10",
+              "odds2": "5.50",
+              "score": "6-3 6-3",
+              "winner": "Hussey G.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M15 San Gregorio di Catania (Italy), clay",
+              "country": "Italy",
+              "surface": "Clay",
+              "player1": "Crivellaro G.",
+              "nationality1": "Italy",
+              "player2": "Raynel A.",
+              "nationality2": "France",
+              "odds1": "2.54",
+              "odds2": "1.44",
+              "score": "6-4 0-6 1-6",
+              "winner": "Raynel A.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M15 San Gregorio di Catania (Italy), clay",
+              "country": "Italy",
+              "surface": "Clay",
+              "player1": "Mecarelli M.",
+              "nationality1": "Italy",
+              "player2": "Scomparin P. R.",
+              "nationality2": "Italy",
+              "odds1": "2.95",
+              "odds2": "1.33",
+              "score": "6-1 6-2",
+              "winner": "Mecarelli M.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M15 San Gregorio di Catania (Italy), clay",
+              "country": "Italy",
+              "surface": "Clay",
+              "player1": "Gschwendtner J.",
+              "nationality1": "United Kingdom",
+              "player2": "Kivattsev K.",
+              "nationality2": "World",
+              "odds1": "3.90",
+              "odds2": "1.20",
+              "score": "4-6 3-6",
+              "winner": "Kivattsev K.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M15 San Gregorio di Catania (Italy), clay",
+              "country": "Italy",
+              "surface": "Clay",
+              "player1": "Gobat A.",
+              "nationality1": "France",
+              "player2": "Cretu C.",
+              "nationality2": "Romania",
+              "odds1": "3.80",
+              "odds2": "1.21",
+              "score": "3-6 6-4 1-6",
+              "winner": "Cretu C.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M15 Valledupar (Colombia), hard",
+              "country": "Colombia",
+              "surface": "Hard",
+              "player1": "Rico Arias N. E.",
+              "nationality1": "Colombia",
+              "player2": "Heredia S.",
+              "nationality2": "Colombia",
+              "odds1": "8.00",
+              "odds2": "1.04",
+              "score": "2-6 1-6",
+              "winner": "Heredia S.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M15 Valledupar (Colombia), hard",
+              "country": "Colombia",
+              "surface": "Hard",
+              "player1": "Sanchez Rojas C. F.",
+              "nationality1": "Colombia",
+              "player2": "Grippo V.",
+              "nationality2": "Argentina",
+              "odds1": "5.75",
+              "odds2": "1.09",
+              "score": "2-6 4-6",
+              "winner": "Grippo V.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M15 Valledupar (Colombia), hard",
+              "country": "Colombia",
+              "surface": "Hard",
+              "player1": "Hurtado Novoa N.",
+              "nationality1": "Colombia",
+              "player2": "Linde Palacios S. A.",
+              "nationality2": "Colombia",
+              "odds1": "8.75",
+              "odds2": "1.02",
+              "score": "6-4 2-6 3-6",
+              "winner": "Linde Palacios S. A.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M25 Guadalajara (Mexico), clay",
+              "country": "Mexico",
+              "surface": "Clay",
+              "player1": "De Alba R.",
+              "nationality1": "Mexico",
+              "player2": "Van Orderlain D.",
+              "nationality2": "USA",
+              "odds1": "1.30",
+              "odds2": "3.10",
+              "score": "4-6 6-2 6-2",
+              "winner": "De Alba R.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M25 Guadalajara (Mexico), clay",
+              "country": "Mexico",
+              "surface": "Clay",
+              "player1": "Candelas R. R.",
+              "nationality1": "Mexico",
+              "player2": "Jauregui Sainz De Rozas R.",
+              "nationality2": "Mexico",
+              "odds1": "5.50",
+              "odds2": "1.10",
+              "score": "3-6 1-6",
+              "winner": "Jauregui Sainz De Rozas R.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M25 Guadalajara (Mexico), clay",
+              "country": "Mexico",
+              "surface": "Clay",
+              "player1": "De Boes M.",
+              "nationality1": "Belgium",
+              "player2": "Goity Zapico S.",
+              "nationality2": "Argentina",
+              "odds1": "2.00",
+              "odds2": "1.70",
+              "score": "2-6 5-7",
+              "winner": "Goity Zapico S.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M25 Guadalajara (Mexico), clay",
+              "country": "Mexico",
+              "surface": "Clay",
+              "player1": "Cooper S.",
+              "nationality1": "United Kingdom",
+              "player2": "Beckles D.",
+              "nationality2": "USA",
+              "odds1": "1.57",
+              "odds2": "2.20",
+              "score": "4-6 1-6",
+              "winner": "Beckles D.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M25 Guadalajara (Mexico), clay",
+              "country": "Mexico",
+              "surface": "Clay",
+              "player1": "Mayo K.",
+              "nationality1": "USA",
+              "player2": "Perez B.",
+              "nationality2": "Venezuela",
+              "odds1": "1.33",
+              "odds2": "3.00",
+              "score": "6-7 6-4 6-4",
+              "winner": "Mayo K.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M25 Guadalajara (Mexico), clay",
+              "country": "Mexico",
+              "surface": "Clay",
+              "player1": "Basel V.",
+              "nationality1": "Argentina",
+              "player2": "Rubio Fierros A. F.",
+              "nationality2": "Mexico",
+              "odds1": "2.10",
+              "odds2": "1.62",
+              "score": "6-7 5-7",
+              "winner": "Rubio Fierros A. F.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M25 Guadalajara (Mexico), clay",
+              "country": "Mexico",
+              "surface": "Clay",
+              "player1": "Berger A.",
+              "nationality1": "France",
+              "player2": "Schtulmann Gasca M.",
+              "nationality2": "Mexico",
+              "odds1": "1.21",
+              "odds2": "3.80",
+              "score": "3-6 3-6",
+              "winner": "Schtulmann Gasca M.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M25 Montreal (Canada), hard",
+              "country": "Canada",
+              "surface": "Hard",
+              "player1": "George B. T.",
+              "nationality1": "Canada",
+              "player2": "Poling K.",
+              "nationality2": "USA",
+              "odds1": "2.90",
+              "odds2": "1.34",
+              "score": "7-5 6-7 6-2",
+              "winner": "George B. T.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M25 Montreal (Canada), hard",
+              "country": "Canada",
+              "surface": "Hard",
+              "player1": "Martin D.",
+              "nationality1": "Canada",
+              "player2": "Hebhang Balan A. T.",
+              "nationality2": "Canada",
+              "odds1": "1.02",
+              "odds2": "8.75",
+              "score": "6-1 6-1",
+              "winner": "Martin D.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M25 Montreal (Canada), hard",
+              "country": "Canada",
+              "surface": "Hard",
+              "player1": "Chidekh C.",
+              "nationality1": "France",
+              "player2": "Wessels L.",
+              "nationality2": "Germany",
+              "odds1": "1.09",
+              "odds2": "5.75",
+              "score": "6-4 1-6 6-4",
+              "winner": "Chidekh C.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M25 Santa Cruz do Sul (Brazil), clay",
+              "country": "Brazil",
+              "surface": "Clay",
+              "player1": "Chabalgoity P. H.",
+              "nationality1": "Brazil",
+              "player2": "De Castro Rocha V. A.",
+              "nationality2": "Brazil",
+              "odds1": "1.09",
+              "odds2": "5.75",
+              "score": "6-4 6-1",
+              "winner": "Chabalgoity P. H.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M25 Santa Cruz do Sul (Brazil), clay",
+              "country": "Brazil",
+              "surface": "Clay",
+              "player1": "De Almeida Santos P. A.",
+              "nationality1": "Brazil",
+              "player2": "Cundom J.",
+              "nationality2": "Argentina",
+              "odds1": "5.25",
+              "odds2": "1.11",
+              "score": "6-3 6-4",
+              "winner": "De Almeida Santos P. A.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M25 Santa Cruz do Sul (Brazil), clay",
+              "country": "Brazil",
+              "surface": "Clay",
+              "player1": "Rodriguez Taverna S.",
+              "nationality1": "Argentina",
+              "player2": "Tosetto R.",
+              "nationality2": "Brazil",
+              "odds1": "1.06",
+              "odds2": "6.75",
+              "score": "6-1 6-4",
+              "winner": "Rodriguez Taverna S.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M25 Santa Cruz do Sul (Brazil), clay",
+              "country": "Brazil",
+              "surface": "Clay",
+              "player1": "Pucinelli de Almeida M.",
+              "nationality1": "Brazil",
+              "player2": "Bruna N.",
+              "nationality2": "Chile",
+              "odds1": "1.03",
+              "odds2": "8.25",
+              "score": "6-2 6-3",
+              "winner": "Pucinelli de Almeida M.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M25 Valencia (Spain), clay",
+              "country": "Spain",
+              "surface": "Clay",
+              "player1": "Pennaforti G.",
+              "nationality1": "Italy",
+              "player2": "Campana Lee G.",
+              "nationality2": "South Korea",
+              "odds1": "2.30",
+              "odds2": "1.53",
+              "score": "6-2 7-5",
+              "winner": "Pennaforti G.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M25 Valencia (Spain), clay",
+              "country": "Spain",
+              "surface": "Clay",
+              "player1": "Sanchez Jover C.",
+              "nationality1": "Spain",
+              "player2": "De Krom M.",
+              "nationality2": "Netherlands",
+              "odds1": "1.33",
+              "odds2": "3.00",
+              "score": "6-4 6-4",
+              "winner": "Sanchez Jover C.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M25 Valencia (Spain), clay",
+              "country": "Spain",
+              "surface": "Clay",
+              "player1": "Krumich M.",
+              "nationality1": "Czech Republic",
+              "player2": "Carrascosa Diaz E.",
+              "nationality2": "Spain",
+              "odds1": "1.10",
+              "odds2": "5.50",
+              "score": "7-5 6-1",
+              "winner": "Krumich M.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "M25 Valencia (Spain), clay",
+              "country": "Spain",
+              "surface": "Clay",
+              "player1": "Lopez Montagud C.",
+              "nationality1": "Spain",
+              "player2": "Cadenasso G.",
+              "nationality2": "Italy",
+              "odds1": "3.00",
+              "odds2": "1.33",
+              "score": "4-6 6-1 3-6",
+              "winner": "Cadenasso G.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Antalya 13 (Turkey), clay",
+              "country": "Turkey",
+              "surface": "Clay",
+              "player1": "Karatancheva A.",
+              "nationality1": "Bulgaria",
+              "player2": "Podlinska M.",
+              "nationality2": "Poland",
+              "odds1": "6.00",
+              "odds2": "1.08",
+              "score": "1-6 0-6",
+              "winner": "Podlinska M.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Antalya 13 (Turkey), clay",
+              "country": "Turkey",
+              "surface": "Clay",
+              "player1": "Oana A. F.",
+              "nationality1": "Romania",
+              "player2": "Anghel A. I.",
+              "nationality2": "Romania",
+              "odds1": "1.07",
+              "odds2": "6.25",
+              "score": "6-1 6-3",
+              "winner": "Oana A. F.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Antalya 13 (Turkey), clay",
+              "country": "Turkey",
+              "surface": "Clay",
+              "player1": "Veleva V.",
+              "nationality1": "Bulgaria",
+              "player2": "Simionescu D.",
+              "nationality2": "Romania",
+              "odds1": "2.80",
+              "odds2": "1.36",
+              "score": "4-6 6-7",
+              "winner": "Simionescu D.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Castellon (Spain), clay",
+              "country": "Spain",
+              "surface": "Clay",
+              "player1": "Cirpanli D.",
+              "nationality1": "Turkey",
+              "player2": "Ferrer Perez C.",
+              "nationality2": "Spain",
+              "odds1": "3.10",
+              "odds2": "1.30",
+              "score": "6-7 5-7",
+              "winner": "Ferrer Perez C.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Castellon (Spain), clay",
+              "country": "Spain",
+              "surface": "Clay",
+              "player1": "Esquiva Banuls C.",
+              "nationality1": "Spain",
+              "player2": "Solar Donoso L.",
+              "nationality2": "Spain",
+              "odds1": "1.36",
+              "odds2": "2.80",
+              "score": "6-2 2-6 7-5",
+              "winner": "Esquiva Banuls C.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Castellon (Spain), clay",
+              "country": "Spain",
+              "surface": "Clay",
+              "player1": "Giaccio J.",
+              "nationality1": "Spain",
+              "player2": "Babel O.",
+              "nationality2": "France",
+              "odds1": "2.65",
+              "odds2": "1.40",
+              "score": "4-6 4-6",
+              "winner": "Babel O.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Castellon (Spain), clay",
+              "country": "Spain",
+              "surface": "Clay",
+              "player1": "Mettraux M.",
+              "nationality1": "Switzerland",
+              "player2": "Lam S.",
+              "nationality2": "USA",
+              "odds1": "2.80",
+              "odds2": "1.36",
+              "score": "1-6 7-6 3-6",
+              "winner": "Lam S.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Castellon (Spain), clay",
+              "country": "Spain",
+              "surface": "Clay",
+              "player1": "Teixido Garcia M. A.",
+              "nationality1": "Spain",
+              "player2": "Torner Sensano N.",
+              "nationality2": "Spain",
+              "odds1": "2.80",
+              "odds2": "1.36",
+              "score": "3-6 4-6",
+              "winner": "Torner Sensano N.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Heraklion 7 (Greece), clay",
+              "country": "Greece",
+              "surface": "Clay",
+              "player1": "Korokozidi E.",
+              "nationality1": "Greece",
+              "player2": "Georgakopoulou D.",
+              "nationality2": "Greece",
+              "odds1": "1.03",
+              "odds2": "8.50",
+              "score": "6-4 6-1",
+              "winner": "Korokozidi E.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Heraklion 7 (Greece), clay",
+              "country": "Greece",
+              "surface": "Clay",
+              "player1": "Argyrokastriti M.",
+              "nationality1": "Greece",
+              "player2": "Svatikova L.",
+              "nationality2": "Slovakia",
+              "odds1": "1.50",
+              "odds2": "2.35",
+              "score": "6-4 4-6 7-5",
+              "winner": "Argyrokastriti M.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Heraklion 7 (Greece), clay",
+              "country": "Greece",
+              "surface": "Clay",
+              "player1": "Sakellaridi S.",
+              "nationality1": "Greece",
+              "player2": "Pochtovyk K.",
+              "nationality2": "Ukraine",
+              "odds1": "1.14",
+              "odds2": "4.60",
+              "score": "6-3 6-2",
+              "winner": "Sakellaridi S.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Lincoln 2 (USA), hard",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Adrover Gallego I.",
+              "nationality1": "Spain",
+              "player2": "Zhiyenbayeva S.",
+              "nationality2": "Kazakhstan",
+              "odds1": "4.40",
+              "odds2": "1.16",
+              "score": "0-6 4-6",
+              "winner": "Zhiyenbayeva S.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Lincoln 2 (USA), hard",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Allen K.",
+              "nationality1": "USA",
+              "player2": "Clarke C.",
+              "nationality2": "USA",
+              "odds1": "2.30",
+              "odds2": "1.53",
+              "score": "3-6 3-6",
+              "winner": "Clarke C.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Lincoln 2 (USA), hard",
+              "country": "USA",
+              "surface": "Hard",
+              "player1": "Mamedova E.",
+              "nationality1": "World",
+              "player2": "Cohen Perovani S.",
+              "nationality2": "Brazil",
+              "odds1": "1.09",
+              "odds2": "5.75",
+              "score": "6-4 6-1",
+              "winner": "Mamedova E.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Monastir 38 (Tunisia), hard",
+              "country": "Tunisia",
+              "surface": "Hard",
+              "player1": "Guth M.",
+              "nationality1": "Germany",
+              "player2": "Danilova O.",
+              "nationality2": "Cyprus",
+              "odds1": "1.04",
+              "odds2": "8.00",
+              "score": "6-0 6-0",
+              "winner": "Guth M.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Monastir 38 (Tunisia), hard",
+              "country": "Tunisia",
+              "surface": "Hard",
+              "player1": "Paszun A.",
+              "nationality1": "Poland",
+              "player2": "Blackbeard K.",
+              "nationality2": "Canada",
+              "odds1": "1.10",
+              "odds2": "5.50",
+              "score": "6-1 6-0",
+              "winner": "Paszun A.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Monastir 38 (Tunisia), hard",
+              "country": "Tunisia",
+              "surface": "Hard",
+              "player1": "Vargas V.",
+              "nationality1": "Ecuador",
+              "player2": "Vaissaud D.",
+              "nationality2": "France",
+              "odds1": "6.50",
+              "odds2": "1.07",
+              "score": "2-6 0-6",
+              "winner": "Vaissaud D.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Neuquen (Argentina), clay",
+              "country": "Argentina",
+              "surface": "Clay",
+              "player1": "Rain Contreras F.",
+              "nationality1": "Chile",
+              "player2": "Beveraggi Lespiau P.",
+              "nationality2": "Argentina",
+              "odds1": "2.65",
+              "odds2": "1.40",
+              "score": "4-6 6-7",
+              "winner": "Beveraggi Lespiau P.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Neuquen (Argentina), clay",
+              "country": "Argentina",
+              "surface": "Clay",
+              "player1": "Bulbarella M.",
+              "nationality1": "Argentina",
+              "player2": "Rodriguez J.",
+              "nationality2": "Uruguay",
+              "odds1": "1.53",
+              "odds2": "2.30",
+              "score": "6-1 4-6 6-1",
+              "winner": "Bulbarella M.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Solarino 2 (Italy), hard",
+              "country": "Italy",
+              "surface": "Hard",
+              "player1": "Francese E.",
+              "nationality1": "Italy",
+              "player2": "Maines N.",
+              "nationality2": "Italy",
+              "odds1": "5.50",
+              "odds2": "1.10",
+              "score": "3-6 6-4 6-7",
+              "winner": "Maines N.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Solarino 2 (Italy), hard",
+              "country": "Italy",
+              "surface": "Hard",
+              "player1": "Galiievska Y.",
+              "nationality1": "Ukraine",
+              "player2": "Corvi A.",
+              "nationality2": "Italy",
+              "odds1": "2.60",
+              "odds2": "1.42",
+              "score": "2-6 6-2 4-6",
+              "winner": "Corvi A.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Solarino 2 (Italy), hard",
+              "country": "Italy",
+              "surface": "Hard",
+              "player1": "Di Paola G.",
+              "nationality1": "Italy",
+              "player2": "Zanolini C.",
+              "nationality2": "Italy",
+              "odds1": "7.00",
+              "odds2": "1.06",
+              "score": "3-6 2-6",
+              "winner": "Zanolini C.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Solarino 2 (Italy), hard",
+              "country": "Italy",
+              "surface": "Hard",
+              "player1": "Ganz F.",
+              "nationality1": "Switzerland",
+              "player2": "Ruchkina K.",
+              "nationality2": "Russia",
+              "odds1": "1.60",
+              "odds2": "2.15",
+              "score": "1-6 3-6",
+              "winner": "Ruchkina K.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Solarino 2 (Italy), hard",
+              "country": "Italy",
+              "surface": "Hard",
+              "player1": "Nosei A.",
+              "nationality1": "Italy",
+              "player2": "Toma M.",
+              "nationality2": "Romania",
+              "odds1": "3.20",
+              "odds2": "1.28",
+              "score": "4-6 3-6",
+              "winner": "Toma M.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Solarino 2 (Italy), hard",
+              "country": "Italy",
+              "surface": "Hard",
+              "player1": "Safi M.",
+              "nationality1": "Iran",
+              "player2": "Wainwright M.",
+              "nationality2": "United Kingdom",
+              "odds1": "1.90",
+              "odds2": "1.78",
+              "score": "6-2 6-3",
+              "winner": "Safi M.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Szabolcsveresmart (Hungary), hard",
+              "country": "Hungary",
+              "surface": "Hard",
+              "player1": "Artemeva V.",
+              "nationality1": "World",
+              "player2": "Petruzelova L.",
+              "nationality2": "Czech Republic",
+              "odds1": "2.54",
+              "odds2": "1.44",
+              "score": "4-6 0-3",
+              "winner": "Petruzelova L.",
+              "homeSetScore": "0",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W15 Szabolcsveresmart (Hungary), hard",
+              "country": "Hungary",
+              "surface": "Hard",
+              "player1": "Auer S.",
+              "nationality1": "Austria",
+              "player2": "Vlckova K.",
+              "nationality2": "Czech Republic",
+              "odds1": "3.50",
+              "odds2": "1.24",
+              "score": "1-6 2-6",
+              "winner": "Vlckova K.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Faro (Portugal), hard",
+              "country": "Portugal",
+              "surface": "Hard",
+              "player1": "Hodzic M.",
+              "nationality1": "Germany",
+              "player2": "Bolsova Zadoinov A.",
+              "nationality2": "Spain",
+              "odds1": "3.10",
+              "odds2": "1.30",
+              "score": "2-6 5-7",
+              "winner": "Bolsova Zadoinov A.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Faro (Portugal), hard",
+              "country": "Portugal",
+              "surface": "Hard",
+              "player1": "Nilsson L.",
+              "nationality1": "Sweden",
+              "player2": "Kaji H.",
+              "nationality2": "Japan",
+              "odds1": "1.75",
+              "odds2": "1.91",
+              "score": "6-7 1-6",
+              "winner": "Kaji H.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Faro (Portugal), hard",
+              "country": "Portugal",
+              "surface": "Hard",
+              "player1": "Visscher S. J.",
+              "nationality1": "Netherlands",
+              "player2": "Bennemann E.",
+              "nationality2": "Germany",
+              "odds1": "2.54",
+              "odds2": "1.44",
+              "score": "3-6 6-7",
+              "winner": "Bennemann E.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Faro (Portugal), hard",
+              "country": "Portugal",
+              "surface": "Hard",
+              "player1": "Tomase E.",
+              "nationality1": "Latvia",
+              "player2": "Ansari C.",
+              "nationality2": "USA",
+              "odds1": "3.10",
+              "odds2": "1.30",
+              "score": "2-6 6-3 0-6",
+              "winner": "Ansari C.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Faro (Portugal), hard",
+              "country": "Portugal",
+              "surface": "Hard",
+              "player1": "Van den Broek I. L.",
+              "nationality1": "Netherlands",
+              "player2": "Van Impe A.",
+              "nationality2": "Belgium",
+              "odds1": "1.83",
+              "odds2": "1.83",
+              "score": "6-3 6-1",
+              "winner": "Van den Broek I. L.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Faro (Portugal), hard",
+              "country": "Portugal",
+              "surface": "Hard",
+              "player1": "Van Zonneveld C.",
+              "nationality1": "Netherlands",
+              "player2": "Ercan M.",
+              "nationality2": "Australia",
+              "odds1": "3.90",
+              "odds2": "1.20",
+              "score": "3-6 0-6",
+              "winner": "Ercan M.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Faro (Portugal), hard",
+              "country": "Portugal",
+              "surface": "Hard",
+              "player1": "Sobolieva A.",
+              "nationality1": "Ukraine",
+              "player2": "Guerrero Alvarez E.",
+              "nationality2": "Spain",
+              "odds1": "2.80",
+              "odds2": "1.36",
+              "score": "3-6 4-6",
+              "winner": "Guerrero Alvarez E.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Faro (Portugal), hard",
+              "country": "Portugal",
+              "surface": "Hard",
+              "player1": "Du Pree B.",
+              "nationality1": "Netherlands",
+              "player2": "Shaikh H.",
+              "nationality2": "USA",
+              "odds1": "1.28",
+              "odds2": "3.20",
+              "score": "6-3 6-4",
+              "winner": "Du Pree B.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Faro (Portugal), hard",
+              "country": "Portugal",
+              "surface": "Hard",
+              "player1": "Roura Llaverias R.",
+              "nationality1": "Spain",
+              "player2": "Fita Boluda A.",
+              "nationality2": "Spain",
+              "odds1": "3.75",
+              "odds2": "1.22",
+              "score": "4-6 4-6",
+              "winner": "Fita Boluda A.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Hamamatsu (Japan), hard",
+              "country": "Japan",
+              "surface": "Hard",
+              "player1": "Mushika Mio",
+              "nationality1": "Japan",
+              "player2": "Diyas Z.",
+              "nationality2": "Kazakhstan",
+              "odds1": "4.60",
+              "odds2": "1.14",
+              "score": "6-7 4-6",
+              "winner": "Diyas Z.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Hamamatsu (Japan), hard",
+              "country": "Japan",
+              "surface": "Hard",
+              "player1": "Sato H.",
+              "nationality1": "Japan",
+              "player2": "Matsuda R.",
+              "nationality2": "Japan",
+              "odds1": "1.83",
+              "odds2": "1.83",
+              "score": "3-6 6-7",
+              "winner": "Matsuda R.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Hamamatsu (Japan), hard",
+              "country": "Japan",
+              "surface": "Hard",
+              "player1": "Yoshioka K.",
+              "nationality1": "Japan",
+              "player2": "Back D.",
+              "nationality2": "South Korea",
+              "odds1": "7.25",
+              "odds2": "1.05",
+              "score": "3-6 6-4 7-5",
+              "winner": "Yoshioka K.",
+              "homeSetScore": "2",
+              "awaySetScore": "1",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Hamamatsu (Japan), hard",
+              "country": "Japan",
+              "surface": "Hard",
+              "player1": "Abe H.",
+              "nationality1": "Japan",
+              "player2": "Irokawa N.",
+              "nationality2": "Japan",
+              "odds1": "1.05",
+              "odds2": "7.25",
+              "score": "6-2 6-4",
+              "winner": "Abe H.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Hamamatsu (Japan), hard",
+              "country": "Japan",
+              "surface": "Hard",
+              "player1": "Jang S. J.",
+              "nationality1": "South Korea",
+              "player2": "Yoshimoto N.",
+              "nationality2": "Japan",
+              "odds1": "1.50",
+              "odds2": "2.35",
+              "score": "7-5 3-6 2-6",
+              "winner": "Yoshimoto N.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Liberec (Czech Republic), hard",
+              "country": "Czech Republic",
+              "surface": "Hard",
+              "player1": "Munzarova L.",
+              "nationality1": "Czech Republic",
+              "player2": "Petkovic A.",
+              "nationality2": "Germany",
+              "odds1": "3.25",
+              "odds2": "1.28",
+              "score": "1-6 2-6",
+              "winner": "Petkovic A.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Liberec (Czech Republic), hard",
+              "country": "Czech Republic",
+              "surface": "Hard",
+              "player1": "Shinikova I.",
+              "nationality1": "Bulgaria",
+              "player2": "Oz I.",
+              "nationality2": "Turkey",
+              "odds1": "1.90",
+              "odds2": "1.78",
+              "score": "0-6 3-6",
+              "winner": "Oz I.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Liberec (Czech Republic), hard",
+              "country": "Czech Republic",
+              "surface": "Hard",
+              "player1": "Smekalova M.",
+              "nationality1": "Czech Republic",
+              "player2": "Sucha A.",
+              "nationality2": "Czech Republic",
+              "odds1": "3.40",
+              "odds2": "1.25",
+              "score": "4-6 3-6",
+              "winner": "Sucha A.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Liberec (Czech Republic), hard",
+              "country": "Czech Republic",
+              "surface": "Hard",
+              "player1": "Kovackova A.",
+              "nationality1": "Czech Republic",
+              "player2": "Sevcikova L.",
+              "nationality2": "Czech Republic",
+              "odds1": "1.18",
+              "odds2": "4.20",
+              "score": "6-4 6-4",
+              "winner": "Kovackova A.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Liberec (Czech Republic), hard",
+              "country": "Czech Republic",
+              "surface": "Hard",
+              "player1": "Buyukakcay C.",
+              "nationality1": "Turkey",
+              "player2": "Boukirat M.",
+              "nationality2": "France",
+              "odds1": "1.14",
+              "odds2": "4.60",
+              "score": "6-3 6-2",
+              "winner": "Buyukakcay C.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Liberec (Czech Republic), hard",
+              "country": "Czech Republic",
+              "surface": "Hard",
+              "player1": "Laboutkova A.",
+              "nationality1": "Czech Republic",
+              "player2": "Spiteri D.",
+              "nationality2": "Italy",
+              "odds1": "1.80",
+              "odds2": "1.87",
+              "score": "6-4 7-5",
+              "winner": "Laboutkova A.",
+              "homeSetScore": "2",
+              "awaySetScore": "0",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Liberec (Czech Republic), hard",
+              "country": "Czech Republic",
+              "surface": "Hard",
+              "player1": "Grammatikopoulou V.",
+              "nationality1": "Greece",
+              "player2": "Aikawa M.",
+              "nationality2": "Japan",
+              "odds1": "1.34",
+              "odds2": "2.90",
+              "score": "2-6 4-6",
+              "winner": "Aikawa M.",
+              "homeSetScore": "0",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            },
+            {
+              "tournament": "W35 Liberec (Czech Republic), hard",
+              "country": "Czech Republic",
+              "surface": "Hard",
+              "player1": "Kucmova A.",
+              "nationality1": "Czech Republic",
+              "player2": "Lemaitre T.",
+              "nationality2": "France",
+              "odds1": "2.30",
+              "odds2": "1.53",
+              "score": "5-7 6-4 1-6",
+              "winner": "Lemaitre T.",
+              "homeSetScore": "1",
+              "awaySetScore": "2",
+              "match_date": "2025-11-04"
+            }
+          ],
+          "webhookUrl": "http://193.24.209.9:5678/webhook/tennis-results",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract mathces",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract mathces": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Build All Pinecone Records",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Find Matching Prediction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Matching Prediction": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Prediction": {
+      "main": [
+        [
+          {
+            "node": "Insert Match Into Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Daily Stats": {
+      "main": [
+        [
+          {
+            "node": "Update System Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Telegram Message": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Pinecone Batch": {
+      "main": [
+        [
+          {
+            "node": "Upload to Pinecone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Pinecone": {
+      "main": [
+        [
+          {
+            "node": "Calculate Daily Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build All Pinecone Records": {
+      "main": [
+        [
+          {
+            "node": "Prepare Pinecone Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Match Into Database": {
+      "main": [
+        [
+          {
+            "node": "Update Player Statistics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update System Metadata": {
+      "main": [
+        [
+          {
+            "node": "Store Daily Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Daily Stats": {
+      "main": [
+        [
+          {
+            "node": "Get Failed Predictions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Failed Predictions": {
+      "main": [
+        [
+          {
+            "node": "LLM Learning Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Learning Analysis": {
+      "main": [
+        [
+          {
+            "node": "Extract LLM Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract LLM Response": {
+      "main": [
+        [
+          {
+            "node": "Store Learning Insights",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Player Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Learning Insights": {
+      "main": [
+        [
+          {
+            "node": "Insert Learning Logs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Learning Logs": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Link Match to Prediction": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Player Insights": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Store Player Insights",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Update Prediction",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Player Statistics": {
+      "main": [
+        [
+          {
+            "node": "Link Match to Prediction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Player Insights": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Format Telegram Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a59d9b77-75e1-4121-a310-edb2692e336b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e21fad19251403203d155894245f670dd6b8cb9831b12c4f346c2d448af3502a"
+  },
+  "id": "N7Ex1EiCXMEjQmKo",
+  "tags": []
+}
