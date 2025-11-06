@@ -13,20 +13,33 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
-# Check if Docker is running
-if ! docker info > /dev/null 2>&1; then
-    echo "❌ Error: Docker is not running!"
-    echo "Please start Docker and try again"
+# Detect container runtime (Docker or Podman)
+if command -v docker > /dev/null 2>&1 && docker info > /dev/null 2>&1; then
+    CONTAINER_CMD="docker"
+    COMPOSE_CMD="docker-compose"
+elif command -v podman > /dev/null 2>&1; then
+    CONTAINER_CMD="podman"
+    COMPOSE_CMD="podman-compose"
+    # If podman-compose not available, use docker-compose with podman socket
+    if ! command -v podman-compose > /dev/null 2>&1; then
+        export DOCKER_HOST="unix://$XDG_RUNTIME_DIR/podman/podman.sock"
+        COMPOSE_CMD="docker-compose"
+    fi
+else
+    echo "❌ Error: Neither Docker nor Podman is available!"
+    echo "Please install Docker or Podman and try again"
     exit 1
 fi
 
+echo "Using: $CONTAINER_CMD with $COMPOSE_CMD"
+
 # Pull latest Metabase image
 echo "📦 Pulling latest Metabase image..."
-docker-compose pull
+$COMPOSE_CMD pull
 
 # Start Metabase
 echo "▶️  Starting Metabase container..."
-docker-compose up -d
+$COMPOSE_CMD up -d
 
 # Wait for container to be healthy
 echo "⏳ Waiting for Metabase to be ready..."
@@ -37,7 +50,7 @@ ELAPSED=0
 INTERVAL=5
 
 while [ $ELAPSED -lt $MAX_WAIT ]; do
-    if docker exec tennis-metabase curl -f http://localhost:3000/api/health > /dev/null 2>&1; then
+    if $CONTAINER_CMD exec tennis-metabase curl -f http://localhost:3000/api/health > /dev/null 2>&1; then
         echo ""
         echo "✅ Metabase is ready!"
         echo ""
@@ -59,5 +72,5 @@ done
 
 echo ""
 echo "⚠️  Metabase is still starting up..."
-echo "Check logs with: docker logs tennis-metabase"
+echo "Check logs with: $CONTAINER_CMD logs tennis-metabase"
 echo "Or wait a bit longer and try accessing http://localhost:3000"
