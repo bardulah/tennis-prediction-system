@@ -258,3 +258,4 @@ docs/n8n-node-examples.md
 docs/n8n-workflow-architecture.md
 docs/pinecone-configuration.md
 docs/pinecone-embeddings-guide.md
+metabase/.env

@@ -1,0 +1,12 @@
+# Environment variables with secrets
+.env
+
+# Metabase application data
+metabase-data/
+
+# Docker volumes
+volumes/
+
+# Logs
+*.log
+logs/

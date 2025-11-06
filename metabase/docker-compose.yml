@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  metabase:
+    image: metabase/metabase:latest
+    container_name: tennis-metabase
+    restart: unless-stopped
+    ports:
+      - "${MB_JETTY_PORT:-3000}:3000"
+    volumes:
+      - ./metabase-data:/metabase-data
+    environment:
+      # Metabase Application Database (stores Metabase's internal data)
+      MB_DB_TYPE: ${MB_DB_TYPE}
+      MB_DB_DBNAME: ${MB_DB_DBNAME}
+      MB_DB_PORT: ${MB_DB_PORT}
+      MB_DB_USER: ${MB_DB_USER}
+      MB_DB_PASS: ${MB_DB_PASS}
+      MB_DB_HOST: ${MB_DB_HOST}
+
+      # Metabase Server Configuration
+      MB_JETTY_PORT: 3000
+
+      # Java Options for better performance
+      JAVA_OPTS: "-Xmx2g -XX:+UseContainerSupport"
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
