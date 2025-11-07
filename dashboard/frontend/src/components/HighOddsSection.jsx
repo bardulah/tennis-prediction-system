@@ -1,10 +1,9 @@
 import { useState, useMemo } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, ChevronRight, Sparkles, TrendingUp, Award, Calendar, Target } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Sparkles, TrendingUp, Award, Calendar, Target } from 'lucide-react'
 import AIAnalysisModal from './AIAnalysisModal'
 
 export default function HighOddsSection({ data, loading, error }) {
-  const [expandedTournaments, setExpandedTournaments] = useState(new Set())
   const [selectedMatch, setSelectedMatch] = useState(null)
   const [showAIModal, setShowAIModal] = useState(false)
   
@@ -50,18 +49,7 @@ export default function HighOddsSection({ data, loading, error }) {
     )
   }
 
-  // Group data by tournament
-  const tournamentGroups = groupByTournament(filteredData)
-
-  const toggleTournament = (tournament) => {
-    const newExpanded = new Set(expandedTournaments)
-    if (newExpanded.has(tournament)) {
-      newExpanded.delete(tournament)
-    } else {
-      newExpanded.add(tournament)
-    }
-    setExpandedTournaments(newExpanded)
-  }
+  // No tournament grouping - just list all picks directly
 
   const handleAnalyzeMatch = (match) => {
     setSelectedMatch(match)
@@ -114,96 +102,16 @@ export default function HighOddsSection({ data, loading, error }) {
           </div>
         </div>
 
-        {/* Tournament Groups */}
+        {/* High Odds List */}
         <div className="space-y-3">
-          {Object.entries(tournamentGroups).map(([tournament, matches]) => {
-            const isExpanded = expandedTournaments.has(tournament)
-            const stats = calculateTournamentStats(matches)
-
-            return (
-              <motion.div
-                key={tournament}
-                className="rounded-2xl border border-slate-800/70 bg-slate-950/30 overflow-hidden"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                layout
-              >
-                {/* Tournament Header */}
-                <motion.button
-                  className="w-full flex items-center justify-between p-4 text-left transition-colors hover:bg-slate-900/40"
-                  onClick={() => toggleTournament(tournament)}
-                  whileHover={{ backgroundColor: 'rgba(15, 23, 42, 0.4)' }}
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <motion.div
-                      animate={{ rotate: isExpanded ? 90 : 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="flex-shrink-0"
-                    >
-                      <ChevronRight className="h-5 w-5 text-slate-400" />
-                    </motion.div>
-
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-slate-100 truncate">
-                        {tournament}
-                      </h3>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {matches.length} {matches.length === 1 ? 'match' : 'matches'}
-                        </span>
-                        {stats.surface && (
-                          <span className="uiverse-pill text-xs">{stats.surface}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Tournament Stats */}
-                  <div className="hidden sm:flex items-center gap-3 ml-4">
-                    <div className="text-center">
-                      <div className="text-xs text-slate-500">Avg Conf</div>
-                      <div className="text-sm font-semibold text-sky-300">{stats.avgConfidence}%</div>
-                    </div>
-                    {stats.accuracy !== null && (
-                      <div className="text-center">
-                        <div className="text-xs text-slate-500">Accuracy</div>
-                        <div className="text-sm font-semibold text-emerald-300">{stats.accuracy}%</div>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/20 border border-amber-500/30">
-                      <Target className="h-3 w-3 text-amber-400" />
-                      <span className="text-xs font-semibold text-amber-300">High Odds</span>
-                    </div>
-                  </div>
-                </motion.button>
-
-                {/* Matches List */}
-                <AnimatePresence>
-                  {isExpanded && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3, ease: 'easeInOut' }}
-                      className="overflow-hidden"
-                    >
-                      <div className="border-t border-slate-800/70 bg-slate-900/20">
-                        {matches.map((match, index) => (
-                          <MatchRow
-                            key={match.prediction_id}
-                            match={match}
-                            index={index}
-                            onAnalyze={handleAnalyzeMatch}
-                          />
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            )
-          })}
+          {filteredData.map((match, index) => (
+            <MatchRow
+              key={match.prediction_id}
+              match={match}
+              index={index}
+              onAnalyze={handleAnalyzeMatch}
+            />
+          ))}
         </div>
       </motion.div>
 
@@ -248,6 +156,9 @@ function MatchRow({ match, index, onAnalyze }) {
           <div className="flex items-center gap-3 mb-2">
             <span className="text-xs text-slate-500">
               {formatDay(match.prediction_day)}
+            </span>
+            <span className="text-xs text-slate-400">
+              {match.tournament}
             </span>
             <span className="flex items-center gap-1 text-xs font-semibold text-amber-300">
               <Target className="h-3 w-3" />
