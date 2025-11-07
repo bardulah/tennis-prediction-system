@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, Sparkles, TrendingUp, Award, Calendar, Target } from 'lucide-react'
 import AIAnalysisModal from './AIAnalysisModal'
 
@@ -107,41 +107,72 @@ export default function HighOddsSection({ data, loading, error }) {
           </div>
         </div>
 
-        {/* Rollup Toggle */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-semibold text-amber-300">High Odds</span>
-            <span className="text-xs text-slate-400">({totalHighOdds} picks)</span>
-          </div>
+        <div className="glass-panel rounded-3xl border border-slate-800/70 overflow-hidden">
+          {/* Tournament Header */}
           <motion.button
+            className="w-full flex items-center justify-between p-4 text-left transition-colors hover:bg-slate-900/40"
             onClick={toggleRollup}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 text-amber-300 text-sm font-medium transition-all hover:from-amber-500/30 hover:to-orange-500/30"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+            whileHover={{ backgroundColor: 'rgba(15, 23, 42, 0.4)' }}
           >
-            <motion.div
-              animate={{ rotate: isRolledUp ? 180 : 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <ChevronDown className="h-4 w-4" />
-            </motion.div>
-            <span>{isRolledUp ? 'Show Less' : 'Show More'}</span>
-          </motion.button>
-        </div>
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <motion.div
+                animate={{ rotate: isRolledUp ? 90 : 0 }}
+                transition={{ duration: 0.2 }}
+                className="flex-shrink-0"
+              >
+                <ChevronDown className="h-5 w-5 text-slate-400" />
+              </motion.div>
 
-        {/* High Odds List */}
-        {!isRolledUp && (
-          <div className="space-y-3">
-            {filteredData.map((match, index) => (
-              <MatchRow
-                key={match.prediction_id}
-                match={match}
-                index={index}
-                onAnalyze={handleAnalyzeMatch}
-              />
-            ))}
-          </div>
-        )}
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-slate-100 truncate">
+                  High Odds
+                </h3>
+                <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
+                  <span className="flex items-center gap-1">
+                    <Target className="h-3 w-3" />
+                    {totalHighOdds} picks
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Tournament Stats */}
+            <div className="hidden sm:flex items-center gap-3 ml-4">
+              <div className="text-center">
+                <div className="text-xs text-slate-500">Bet Recs</div>
+                <div className="text-sm font-semibold text-amber-300">{betRecommendations}</div>
+              </div>
+              <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/20 border border-amber-500/30">
+                <Target className="h-3 w-3 text-amber-400" />
+                <span className="text-xs font-semibold text-amber-300">High Odds</span>
+              </div>
+            </div>
+          </motion.button>
+
+          {/* Matches List */}
+          <AnimatePresence>
+            {!isRolledUp && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                className="overflow-hidden"
+              >
+                <div className="border-t border-slate-800/70 bg-slate-900/20">
+                  {filteredData.map((match, index) => (
+                    <MatchRow
+                      key={match.prediction_id}
+                      match={match}
+                      index={index}
+                      onAnalyze={handleAnalyzeMatch}
+                    />
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </motion.div>
 
       {/* AI Analysis Modal */}

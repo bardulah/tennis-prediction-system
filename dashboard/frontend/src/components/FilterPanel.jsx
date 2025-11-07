@@ -10,7 +10,7 @@ const sortOptions = [
   { value: 'system_accuracy_at_prediction', label: 'System Accuracy' }
 ]
 
-export default function FilterPanel({ filters, onChange, onToggleRollup, isRolledUp, loading }) {
+export default function FilterPanel({ filters, onChange, loading }) {
   const [filterOptions, setFilterOptions] = useState({
     tournaments: [''],
     surfaces: [''],
@@ -26,7 +26,7 @@ export default function FilterPanel({ filters, onChange, onToggleRollup, isRolle
         setFilterOptions({
           tournaments: ['', ...(data.tournaments || [])],
           surfaces: ['', ...(data.surfaces || [])],
-          learningPhases: ['', ...(data.learning_phases || [])]
+          learningPhases: ['', ...(data.learningPhases || [])]
         })
       } catch (error) {
         console.error('Failed to fetch filter options:', error)
@@ -43,6 +43,7 @@ export default function FilterPanel({ filters, onChange, onToggleRollup, isRolle
 
     fetchFilterOptions()
   }, [])
+
   const toggleValue = (key, trueValue = 'true', falseValue = 'false') => {
     const current = filters[key]
     if (current === trueValue) {
@@ -78,31 +79,7 @@ export default function FilterPanel({ filters, onChange, onToggleRollup, isRolle
   }
 
   return (
-    <div className="relative">
-      {/* Rollup Toggle */}
-      {onToggleRollup && (
-        <motion.button
-          onClick={onToggleRollup}
-          className="absolute top-4 right-4 flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-slate-600/20 to-slate-500/20 border border-slate-600/30 text-slate-300 text-sm font-medium transition-all hover:from-slate-600/30 hover:to-slate-500/30 z-10"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          <motion.div
-            animate={{ rotate: isRolledUp ? 180 : 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <span className="text-lg">⚙️</span>
-          </motion.div>
-        </motion.button>
-      )}
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.3 }}
-        className={`transition-all duration-300 ${isRolledUp ? 'opacity-50 h-20' : 'opacity-100'}`}
-      >
-        <div className="space-y-8">
+    <div className="space-y-8">
       <div className="space-y-3">
         <h2 className="text-xl font-semibold tracking-tight">Filters</h2>
         <p className="text-sm text-slate-300/70">
@@ -146,7 +123,7 @@ export default function FilterPanel({ filters, onChange, onToggleRollup, isRolle
             </select>
           </Field>
 
-          <Field label="Tournament" description="Specific tournament">
+          <Field label="Tournament" description="Event venue">
             <select
               value={filters.tournament}
               onChange={handleInput('tournament')}
@@ -161,26 +138,26 @@ export default function FilterPanel({ filters, onChange, onToggleRollup, isRolle
             </select>
           </Field>
 
-          <Field label="Learning phase" description="Model maturity">
+          <Field label="Learning Phase" description="Model maturity">
             <select
               value={filters.learningPhase}
               onChange={handleInput('learningPhase')}
               disabled={loadingOptions}
-              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400/40 disabled:opacity-50"
+              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-400/40 disabled:opacity-50"
             >
               {filterOptions.learningPhases.map((phase) => (
                 <option value={phase} key={phase || 'all'}>
-                  {phase ? phase.replaceAll('_', ' ') : 'All phases'}
+                  {phase || 'All phases'}
                 </option>
               ))}
             </select>
           </Field>
 
-          <Field label="Action" description="Recommended call">
+          <Field label="Recommended Action" description="Betting recommendation">
             <select
               value={filters.recommendedAction}
               onChange={handleInput('recommendedAction')}
-              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400/40"
+              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-400/40"
             >
               {actions.map((action) => (
                 <option value={action} key={action || 'all'}>
@@ -191,28 +168,34 @@ export default function FilterPanel({ filters, onChange, onToggleRollup, isRolle
           </Field>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Field label="Confidence min" description="0-100">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+          <Field label="Min Confidence" description="Lower bound">
             <input
               type="number"
               value={filters.minConfidence}
               onChange={handleInput('minConfidence')}
-              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40"
-              min={0}
-              max={100}
+              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/40"
+              placeholder="0-100"
+              min="0"
+              max="100"
             />
           </Field>
-          <Field label="Confidence max" description="0-100">
+
+          <Field label="Max Confidence" description="Upper bound">
             <input
               type="number"
               value={filters.maxConfidence}
               onChange={handleInput('maxConfidence')}
-              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400/40"
-              min={0}
-              max={100}
+              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/40"
+              placeholder="0-100"
+              min="0"
+              max="100"
             />
           </Field>
-          <Field label="Date from" description="Start date">
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+          <Field label="Date From" description="Start date">
             <input
               type="date"
               value={filters.dateFrom}
@@ -220,7 +203,8 @@ export default function FilterPanel({ filters, onChange, onToggleRollup, isRolle
               className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/40"
             />
           </Field>
-          <Field label="Date to" description="End date">
+
+          <Field label="Date To" description="End date">
             <input
               type="date"
               value={filters.dateTo}
@@ -277,8 +261,6 @@ export default function FilterPanel({ filters, onChange, onToggleRollup, isRolle
       >
         Reset filters
       </motion.button>
-        </div>
-      </motion.div>
     </div>
   )
 }

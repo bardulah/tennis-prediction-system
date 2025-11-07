@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import { AnimatePresence, motion } from 'framer-motion'
 import { LayoutGrid, List } from 'lucide-react'
-import FilterPanel from './components/FilterPanel.jsx'
+
 import PredictionTable from './components/PredictionTable.jsx'
 import TournamentRolldowns from './components/TournamentRolldowns.jsx'
 import SocialsSection from './components/SocialsSection.jsx'
@@ -53,7 +53,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState('rolldowns') // 'rolldowns' or 'table'
   const [pageSize, setPageSize] = useState(viewMode === 'rolldowns' ? 1000 : 25)
   const [showFilters, setShowFilters] = useState(true)
-  const [areFiltersRolledUp, setAreFiltersRolledUp] = useState(true)
+
   const [filters, setFilters] = useState({
     search: '',
     surface: '',
@@ -120,9 +120,7 @@ export default function App() {
     setFilters((current) => ({ ...current, ...next }))
   }
 
-  const toggleFiltersRollup = () => {
-    setAreFiltersRolledUp(!areFiltersRolledUp)
-  }
+
 
   const totalPages = meta.total_pages ?? meta.totalPages ?? 0
 
@@ -247,12 +245,12 @@ export default function App() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1, duration: 0.3 }}
               >
-                <FilterPanel
+                <TimelineRail
+                  loading={query.isFetching}
+                  total={meta.total}
                   filters={filters}
                   onChange={handleFilterChange}
-                  onToggleRollup={toggleFiltersRollup}
-                  isRolledUp={areFiltersRolledUp}
-                  loading={query.isFetching}
+                  loading: filterLoading
                 />
               </motion.div>
             </motion.div>
