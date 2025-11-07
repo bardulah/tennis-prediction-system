@@ -8,6 +8,9 @@ import PredictionTable from './components/PredictionTable.jsx'
 import TournamentRolldowns from './components/TournamentRolldowns.jsx'
 import SocialsSection from './components/SocialsSection.jsx'
 import TimelineRail from './components/TimelineRail.jsx'
+import ValueBetsSection from './components/ValueBetsSection.jsx'
+import HighOddsSection from './components/HighOddsSection.jsx'
+import GeminiSearchSection from './components/GeminiSearchSection.jsx'
 
 const pageSizeOptions = [10, 25, 50, 100]
 
@@ -251,6 +254,28 @@ export default function App() {
 
         {/* Community Picks Section */}
         <SocialsSection />
+
+        {/* New Special Sections */}
+        <section className="space-y-8">
+          {/* Value Bets Section - Odds > 1.4 AND action='bet' */}
+          <ValueBetsSection
+            data={query.data?.data ?? []}
+            loading={query.isLoading || query.isFetching}
+            error={query.error}
+          />
+
+          {/* High Odds Section - Odds >= 1.7 */}
+          <HighOddsSection
+            data={query.data?.data ?? []}
+            loading={query.isLoading || query.isFetching}
+            error={query.error}
+          />
+        </section>
+
+        {/* Gemini Search Section */}
+        <section>
+          <GeminiSearchSection />
+        </section>
 
         {/* Timeline and Predictions */}
         <section className="space-y-6">
