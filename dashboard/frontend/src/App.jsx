@@ -7,10 +7,11 @@ import { LayoutGrid, List } from 'lucide-react'
 import PredictionTable from './components/PredictionTable.jsx'
 import TournamentRolldowns from './components/TournamentRolldowns.jsx'
 import SocialsSection from './components/SocialsSection.jsx'
-import TimelineRail from './components/TimelineRail.jsx'
 import ValueBetsSection from './components/ValueBetsSection.jsx'
 import HighOddsSection from './components/HighOddsSection.jsx'
 import GeminiSearchSection from './components/GeminiSearchSection.jsx'
+import NeonStreamSection from './components/NeonStreamSection.jsx'
+import FilterPanel from './components/FilterPanel.jsx'
 
 const pageSizeOptions = [10, 25, 50, 100]
 
@@ -219,7 +220,7 @@ export default function App() {
               onClick={() => setShowFilters(!showFilters)}
             >
               <span>{showFilters ? '🔼' : '🔽'}</span>
-              {showFilters ? 'Hide Filters' : 'Show Filters'}
+              {showFilters ? 'Hide Filters & Stream' : 'Show Filters & Stream'}
               {!showFilters && (
                 <span className="text-xs bg-teal-500/20 text-teal-300 px-2 py-1 rounded-full">
                   {Object.values(filters).filter(v => v !== '').length} active
@@ -229,7 +230,7 @@ export default function App() {
           </div>
         </motion.div>
 
-        {/* Collapsible Filters */}
+        {/* Collapsible Filters and Neon Stream */}
         <AnimatePresence>
           {showFilters && (
             <motion.div
@@ -240,18 +241,30 @@ export default function App() {
               className="overflow-hidden"
             >
               <motion.div
-                className="glass-panel rounded-3xl p-6 border border-slate-800/70 w-full max-w-none"
+                className="grid grid-cols-1 xl:grid-cols-2 gap-6"
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1, duration: 0.3 }}
               >
-                <TimelineRail
-                  loading={query.isFetching}
-                  total={meta.total}
-                  filters={filters}
-                  onChange={handleFilterChange}
-                  loading: filterLoading
-                />
+                {/* Filter Panel */}
+                <div className="glass-panel rounded-3xl border border-slate-800/70 overflow-hidden">
+                  <div className="p-6">
+                    <FilterPanel
+                      filters={filters}
+                      onChange={handleFilterChange}
+                      loading={query.isFetching}
+                    />
+                  </div>
+                </div>
+
+                {/* Neon Stream */}
+                <div>
+                  <NeonStreamSection
+                    data={query.data?.data ?? []}
+                    loading={query.isLoading || query.isFetching}
+                    error={query.error}
+                  />
+                </div>
               </motion.div>
             </motion.div>
           )}
@@ -284,8 +297,6 @@ export default function App() {
 
         {/* Timeline and Predictions */}
         <section className="space-y-6">
-          <TimelineRail loading={query.isLoading} total={totalRecords} />
-
           {/* Tournament Rolldowns View */}
           {viewMode === 'rolldowns' && (
             <motion.div

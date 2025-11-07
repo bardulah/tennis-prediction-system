@@ -72,24 +72,31 @@ export default function HighOddsSection({ data, loading, error }) {
   return (
     <>
       <motion.div
-        className="space-y-4"
+        className="glass-panel rounded-3xl border border-slate-800/70 overflow-hidden"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.1 }}
       >
         {/* Section Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <motion.button
+          className="w-full flex items-center justify-between p-6 text-left transition-colors hover:bg-slate-900/40"
+          onClick={toggleRollup}
+          whileHover={{ backgroundColor: 'rgba(15, 23, 42, 0.4)' }}
+        >
+          <div className="flex items-center gap-4 flex-1 min-w-0">
             <div className="p-2 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30">
               <Target className="h-5 w-5 text-amber-300" />
             </div>
-            <div>
-              <h2 className="text-xl font-semibold text-slate-100">High Odds</h2>
-              <p className="text-sm text-slate-400">Today's picks with odds &gt;= 1.7</p>
+            
+            <div className="flex-1 min-w-0">
+              <h3 className="text-xl font-semibold text-slate-100 truncate">
+                High Odds
+              </h3>
+              <p className="text-sm text-slate-400 mt-1">Today's picks with odds &gt;= 1.7</p>
             </div>
           </div>
-          
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-center gap-4">
             <div className="text-center">
               <div className="text-xs text-slate-500">Total</div>
               <div className="text-lg font-bold text-amber-300">{totalHighOdds}</div>
@@ -104,75 +111,40 @@ export default function HighOddsSection({ data, loading, error }) {
                 <div className="text-lg font-bold text-emerald-300">{betRecommendations}</div>
               </div>
             )}
+            
+            <motion.div
+              animate={{ rotate: isRolledUp ? 0 : 180 }}
+              transition={{ duration: 0.2 }}
+              className="flex-shrink-0"
+            >
+              <ChevronDown className="h-5 w-5 text-slate-400" />
+            </motion.div>
           </div>
-        </div>
+        </motion.button>
 
-        <div className="glass-panel rounded-3xl border border-slate-800/70 overflow-hidden">
-          {/* Tournament Header */}
-          <motion.button
-            className="w-full flex items-center justify-between p-4 text-left transition-colors hover:bg-slate-900/40"
-            onClick={toggleRollup}
-            whileHover={{ backgroundColor: 'rgba(15, 23, 42, 0.4)' }}
-          >
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <motion.div
-                animate={{ rotate: isRolledUp ? 90 : 0 }}
-                transition={{ duration: 0.2 }}
-                className="flex-shrink-0"
-              >
-                <ChevronDown className="h-5 w-5 text-slate-400" />
-              </motion.div>
-
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-slate-100 truncate">
-                  High Odds
-                </h3>
-                <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
-                  <span className="flex items-center gap-1">
-                    <Target className="h-3 w-3" />
-                    {totalHighOdds} picks
-                  </span>
-                </div>
+        {/* Matches List */}
+        <AnimatePresence>
+          {!isRolledUp && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              className="overflow-hidden"
+            >
+              <div className="border-t border-slate-800/70 bg-slate-900/20">
+                {filteredData.map((match, index) => (
+                  <MatchRow
+                    key={match.prediction_id}
+                    match={match}
+                    index={index}
+                    onAnalyze={handleAnalyzeMatch}
+                  />
+                ))}
               </div>
-            </div>
-
-            {/* Tournament Stats */}
-            <div className="hidden sm:flex items-center gap-3 ml-4">
-              <div className="text-center">
-                <div className="text-xs text-slate-500">Bet Recs</div>
-                <div className="text-sm font-semibold text-amber-300">{betRecommendations}</div>
-              </div>
-              <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/20 border border-amber-500/30">
-                <Target className="h-3 w-3 text-amber-400" />
-                <span className="text-xs font-semibold text-amber-300">High Odds</span>
-              </div>
-            </div>
-          </motion.button>
-
-          {/* Matches List */}
-          <AnimatePresence>
-            {!isRolledUp && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.3, ease: 'easeInOut' }}
-                className="overflow-hidden"
-              >
-                <div className="border-t border-slate-800/70 bg-slate-900/20">
-                  {filteredData.map((match, index) => (
-                    <MatchRow
-                      key={match.prediction_id}
-                      match={match}
-                      index={index}
-                      onAnalyze={handleAnalyzeMatch}
-                    />
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       {/* AI Analysis Modal */}
