@@ -1,11 +1,11 @@
 import { GoogleGenAI } from "@google/genai";
 import { SportPick } from '../types';
 
-if (!process.env.API_KEY) {
-    console.error("API_KEY environment variable not set.");
+if (!import.meta.env.VITE_GOOGLE_AI_API_KEY) {
+    console.error("VITE_GOOGLE_AI_API_KEY environment variable not set.");
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GOOGLE_AI_API_KEY });
 
 const cleanJsonString = (str) => {
   // Remove markdown formatting and trim whitespace
