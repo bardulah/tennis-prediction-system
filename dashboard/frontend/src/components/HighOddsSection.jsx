@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { Sparkles, TrendingUp, Award, Calendar, Target } from 'lucide-react'
+import { ChevronDown, Sparkles, TrendingUp, Award, Calendar, Target } from 'lucide-react'
 import AIAnalysisModal from './AIAnalysisModal'
 
 export default function HighOddsSection({ data, loading, error }) {
+  const [isRolledUp, setIsRolledUp] = useState(true)
   const [selectedMatch, setSelectedMatch] = useState(null)
   const [showAIModal, setShowAIModal] = useState(false)
   
@@ -64,6 +65,10 @@ export default function HighOddsSection({ data, loading, error }) {
 
   const betRecommendations = filteredData.filter(m => m.recommended_action === 'bet').length
 
+  const toggleRollup = () => {
+    setIsRolledUp(!isRolledUp)
+  }
+
   return (
     <>
       <motion.div
@@ -102,17 +107,41 @@ export default function HighOddsSection({ data, loading, error }) {
           </div>
         </div>
 
-        {/* High Odds List */}
-        <div className="space-y-3">
-          {filteredData.map((match, index) => (
-            <MatchRow
-              key={match.prediction_id}
-              match={match}
-              index={index}
-              onAnalyze={handleAnalyzeMatch}
-            />
-          ))}
+        {/* Rollup Toggle */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-semibold text-amber-300">High Odds</span>
+            <span className="text-xs text-slate-400">({totalHighOdds} picks)</span>
+          </div>
+          <motion.button
+            onClick={toggleRollup}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 text-amber-300 text-sm font-medium transition-all hover:from-amber-500/30 hover:to-orange-500/30"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <motion.div
+              animate={{ rotate: isRolledUp ? 180 : 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <ChevronDown className="h-4 w-4" />
+            </motion.div>
+            <span>{isRolledUp ? 'Show Less' : 'Show More'}</span>
+          </motion.button>
         </div>
+
+        {/* High Odds List */}
+        {!isRolledUp && (
+          <div className="space-y-3">
+            {filteredData.map((match, index) => (
+              <MatchRow
+                key={match.prediction_id}
+                match={match}
+                index={index}
+                onAnalyze={handleAnalyzeMatch}
+              />
+            ))}
+          </div>
+        )}
       </motion.div>
 
       {/* AI Analysis Modal */}

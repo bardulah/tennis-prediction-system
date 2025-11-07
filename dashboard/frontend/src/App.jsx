@@ -53,6 +53,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState('rolldowns') // 'rolldowns' or 'table'
   const [pageSize, setPageSize] = useState(viewMode === 'rolldowns' ? 1000 : 25)
   const [showFilters, setShowFilters] = useState(true)
+  const [areFiltersRolledUp, setAreFiltersRolledUp] = useState(true)
   const [filters, setFilters] = useState({
     search: '',
     surface: '',
@@ -117,6 +118,10 @@ export default function App() {
   const handleFilterChange = (next) => {
     setPage(1)
     setFilters((current) => ({ ...current, ...next }))
+  }
+
+  const toggleFiltersRollup = () => {
+    setAreFiltersRolledUp(!areFiltersRolledUp)
   }
 
   const totalPages = meta.total_pages ?? meta.totalPages ?? 0
@@ -245,6 +250,8 @@ export default function App() {
                 <FilterPanel
                   filters={filters}
                   onChange={handleFilterChange}
+                  onToggleRollup={toggleFiltersRollup}
+                  isRolledUp={areFiltersRolledUp}
                   loading={query.isFetching}
                 />
               </motion.div>

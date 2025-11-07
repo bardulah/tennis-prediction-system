@@ -1,11 +1,11 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
+import { SportPick } from '../types';
 
-// Note: The user provided import with GoogleGenAI but the correct package name is GoogleGenerativeAI
-if (!import.meta.env.VITE_GOOGLE_AI_API_KEY) {
-  console.error("VITE_GOOGLE_AI_API_KEY environment variable not set.");
+if (!process.env.API_KEY) {
+    console.error("API_KEY environment variable not set.");
 }
 
-const ai = new GoogleGenerativeAI(import.meta.env.VITE_GOOGLE_AI_API_KEY);
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const cleanJsonString = (str) => {
   // Remove markdown formatting and trim whitespace
@@ -32,14 +32,19 @@ Each object must have the following properties:
 If you cannot find any picks, return an empty array for the 'picks' key.`;
 
   try {
-    const model = ai.getGenerativeModel({ model: "gemini-2.5-flash" });
-    
-    const response = await model.generateContent([
-      systemInstruction,
-      `User Query: ${userQuery}`
-    ]);
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
+          { role: 'user', parts: [{ text: systemInstruction }] },
+          { role: 'model', parts: [{ text: 'OK, I will find the best sports picks and respond in the required JSON format.' }] },
+          { role: 'user', parts: [{ text: userQuery }] },
+      ],
+      config: {
+        tools: [{ googleSearch: {} }],
+      },
+    });
 
-    const jsonText = cleanJsonString(response.response.text());
+    const jsonText = cleanJsonString(response.text);
     const parsedData = JSON.parse(jsonText);
     const picks = parsedData.picks || [];
 

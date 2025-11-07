@@ -10,7 +10,7 @@ const sortOptions = [
   { value: 'system_accuracy_at_prediction', label: 'System Accuracy' }
 ]
 
-export default function FilterPanel({ filters, onChange, loading }) {
+export default function FilterPanel({ filters, onChange, onToggleRollup, isRolledUp, loading }) {
   const [filterOptions, setFilterOptions] = useState({
     tournaments: [''],
     surfaces: [''],
@@ -78,7 +78,31 @@ export default function FilterPanel({ filters, onChange, loading }) {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="relative">
+      {/* Rollup Toggle */}
+      {onToggleRollup && (
+        <motion.button
+          onClick={onToggleRollup}
+          className="absolute top-4 right-4 flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-slate-600/20 to-slate-500/20 border border-slate-600/30 text-slate-300 text-sm font-medium transition-all hover:from-slate-600/30 hover:to-slate-500/30 z-10"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <motion.div
+            animate={{ rotate: isRolledUp ? 180 : 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <span className="text-lg">⚙️</span>
+          </motion.div>
+        </motion.button>
+      )}
+
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        className={`transition-all duration-300 ${isRolledUp ? 'opacity-50 h-20' : 'opacity-100'}`}
+      >
+        <div className="space-y-8">
       <div className="space-y-3">
         <h2 className="text-xl font-semibold tracking-tight">Filters</h2>
         <p className="text-sm text-slate-300/70">
@@ -253,6 +277,8 @@ export default function FilterPanel({ filters, onChange, loading }) {
       >
         Reset filters
       </motion.button>
+        </div>
+      </motion.div>
     </div>
   )
 }
