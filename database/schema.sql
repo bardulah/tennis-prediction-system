@@ -327,6 +327,38 @@ CREATE TRIGGER trigger_update_prediction_accuracy
     WHEN (OLD.actual_winner IS DISTINCT FROM NEW.actual_winner)
     EXECUTE FUNCTION update_prediction_accuracy();
 
+-- Live matches table for real-time dashboard updates (independent from prediction system)
+CREATE TABLE live_matches (
+    id SERIAL PRIMARY KEY,
+    match_identifier VARCHAR(255) UNIQUE NOT NULL,  -- Matches predictions.match_id format
+    live_score VARCHAR(100),
+    live_status VARCHAR(50) NOT NULL DEFAULT 'not_started',  -- 'not_started', 'live', 'completed'
+    last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Index for fast lookups
+CREATE INDEX idx_live_matches_identifier ON live_matches(match_identifier);
+CREATE INDEX idx_live_matches_status ON live_matches(live_status);
+CREATE INDEX idx_live_matches_updated ON live_matches(last_updated);
+
+-- Function to update live match status
+CREATE OR REPLACE FUNCTION update_live_match(
+    p_match_identifier VARCHAR(255),
+    p_live_score VARCHAR(100),
+    p_live_status VARCHAR(50)
+) RETURNS VOID AS $$
+BEGIN
+    INSERT INTO live_matches (match_identifier, live_score, live_status)
+    VALUES (p_match_identifier, p_live_score, p_live_status)
+    ON CONFLICT (match_identifier) 
+    DO UPDATE SET 
+        live_score = p_live_score,
+        live_status = p_live_status,
+        last_updated = NOW();
+END;
+$$ LANGUAGE plpgsql;
+
 -- Comments for documentation
 COMMENT ON TABLE system_metadata IS 'System-wide metadata including accuracy tracking and learning phase';
 COMMENT ON TABLE players IS 'Player profiles with comprehensive statistics and performance metrics';
@@ -334,8 +366,10 @@ COMMENT ON TABLE matches IS 'Historical match data with odds and results informa
 COMMENT ON TABLE predictions IS 'AI-generated predictions with confidence scoring and reasoning';
 COMMENT ON TABLE player_insights IS 'Player-specific insights discovered through learning analysis';
 COMMENT ON TABLE learning_log IS 'System learning and pattern discovery tracking';
+COMMENT ON TABLE live_matches IS 'Real-time live match data for dashboard display (independent from prediction system)';
 
 COMMENT ON COLUMN players.giant_killer_score IS 'Score indicating player ability to beat higher-ranked opponents';
 COMMENT ON COLUMN players.momentum_score IS 'Recent form indicator based on recent match performance';
 COMMENT ON COLUMN predictions.confidence_score IS 'AI confidence level from 0-100, adjusted by learning phase';
 COMMENT ON COLUMN predictions.data_quality_score IS 'Quality indicator of data available for prediction (0-100)';
+COMMENT ON COLUMN live_matches.live_status IS 'Match status: not_started, live, or completed';

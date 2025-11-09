@@ -51,7 +51,7 @@ const fetchPredictions = async ({ queryKey }) => {
 
 export default function App() {
   const [page, setPage] = useState(1)
-  const [viewMode, setViewMode] = useState('rolldowns') // 'rolldowns' or 'table'
+  const [viewMode, setViewMode] = useState('table') // 'rolldowns' or 'table'
   const [pageSize, setPageSize] = useState(viewMode === 'rolldowns' ? 1000 : 25)
   const [showFilters, setShowFilters] = useState(true)
 

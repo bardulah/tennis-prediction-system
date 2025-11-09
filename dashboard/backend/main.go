@@ -53,6 +53,9 @@ type prediction struct {
     PredictionCorrect         *bool      `json:"prediction_correct,omitempty"`
     ConfidenceBucket          *string    `json:"confidence_bucket,omitempty"`
     CreatedAt                 *time.Time `json:"created_at,omitempty"`
+    LiveScore                 *string    `json:"live_score,omitempty"`
+    LiveStatus                *string    `json:"live_status,omitempty"`
+    LastUpdated               *time.Time `json:"last_updated,omitempty"`
 }
 
 type predictionsResponse struct {
@@ -174,6 +177,10 @@ func (s *server) handleListPredictions(w http.ResponseWriter, r *http.Request) {
             &p.PredictionCorrect,
             &p.ConfidenceBucket,
             &p.CreatedAt,
+            &p.LiveScore,
+            &p.LiveStatus,
+            &p.LastUpdated,
+            &p.ActualWinner,
         )
         if err != nil {
             httpError(w, err, http.StatusInternalServerError)
@@ -369,37 +376,42 @@ func collectFilters(r *http.Request) filterSet {
 func buildPredictionQuery(filters filterSet, page, pageSize int) (string, []any) {
     base := strings.Builder{}
     base.WriteString(`SELECT
-        prediction_id,
-        match_id,
-        prediction_date,
-        prediction_day,
-        tournament,
-        surface,
-        player1,
-        player2,
-        odds_player1,
-        odds_player2,
-        predicted_winner,
-        confidence_score,
-        reasoning,
-        risk_assessment,
-        value_bet,
-        recommended_action,
-        data_quality_score,
-        learning_phase,
-        days_operated,
-        system_accuracy_at_prediction,
-        data_limitations,
-        player1_data_available,
-        player2_data_available,
-        h2h_data_available,
-        surface_data_available,
-        similar_matches_count,
-        actual_winner,
-        prediction_correct,
-        confidence_bucket,
-        created_at
-        FROM predictions`)
+        p.prediction_id,
+        p.match_id,
+        p.prediction_date,
+        p.prediction_day,
+        p.tournament,
+        p.surface,
+        p.player1,
+        p.player2,
+        p.odds_player1,
+        p.odds_player2,
+        p.predicted_winner,
+        p.confidence_score,
+        p.reasoning,
+        p.risk_assessment,
+        p.value_bet,
+        p.recommended_action,
+        p.data_quality_score,
+        p.learning_phase,
+        p.days_operated,
+        p.system_accuracy_at_prediction,
+        p.data_limitations,
+        p.player1_data_available,
+        p.player2_data_available,
+        p.h2h_data_available,
+        p.surface_data_available,
+        p.similar_matches_count,
+        p.actual_winner,
+        p.prediction_correct,
+        p.confidence_bucket,
+        p.created_at,
+        l.live_score,
+        l.live_status,
+        l.last_updated,
+        l.actual_winner
+        FROM predictions p
+        LEFT JOIN live_matches l ON l.match_identifier = p.match_id`)
 
     clauses, args := buildWhereClauses(filters)
     if len(clauses) > 0 {
@@ -438,7 +450,7 @@ func buildPredictionQuery(filters filterSet, page, pageSize int) (string, []any)
 
 func buildPredictionCountQuery(filters filterSet) (string, []any) {
     base := strings.Builder{}
-    base.WriteString("SELECT COUNT(*) FROM predictions")
+    base.WriteString("SELECT COUNT(*) FROM predictions p LEFT JOIN live_matches l ON l.match_identifier = p.match_id")
     clauses, args := buildWhereClauses(filters)
     if len(clauses) > 0 {
         base.WriteString(" WHERE ")
@@ -458,47 +470,47 @@ func buildWhereClauses(filters filterSet) ([]string, []any) {
 
     if filters.Search != "" {
         like := fmt.Sprintf("%%%s%%", strings.ToLower(filters.Search))
-        addClause(fmt.Sprintf("(LOWER(tournament) LIKE $%d OR LOWER(player1) LIKE $%d OR LOWER(player2) LIKE $%d)", len(args)+1, len(args)+1, len(args)+1), like)
+        addClause(fmt.Sprintf("(LOWER(p.tournament) LIKE $%d OR LOWER(p.player1) LIKE $%d OR LOWER(p.player2) LIKE $%d)", len(args)+1, len(args)+1, len(args)+1), like)
     }
 
     if filters.Tournament != "" {
-        addClause(fmt.Sprintf("tournament = $%d", len(args)+1), filters.Tournament)
+        addClause(fmt.Sprintf("p.tournament = $%d", len(args)+1), filters.Tournament)
     }
 
     if filters.Surface != "" {
-        addClause(fmt.Sprintf("surface = $%d", len(args)+1), filters.Surface)
+        addClause(fmt.Sprintf("p.surface = $%d", len(args)+1), filters.Surface)
     }
 
     if filters.LearningPhase != "" {
-        addClause(fmt.Sprintf("learning_phase = $%d", len(args)+1), filters.LearningPhase)
+        addClause(fmt.Sprintf("p.learning_phase = $%d", len(args)+1), filters.LearningPhase)
     }
 
     if filters.RecommendedAction != "" {
-        addClause(fmt.Sprintf("recommended_action = $%d", len(args)+1), filters.RecommendedAction)
+        addClause(fmt.Sprintf("p.recommended_action = $%d", len(args)+1), filters.RecommendedAction)
     }
 
     if filters.PredictionCorrect != nil {
-        addClause(fmt.Sprintf("prediction_correct = $%d", len(args)+1), *filters.PredictionCorrect)
+        addClause(fmt.Sprintf("p.prediction_correct = $%d", len(args)+1), *filters.PredictionCorrect)
     }
 
     if filters.ValueBet != nil {
-        addClause(fmt.Sprintf("value_bet = $%d", len(args)+1), *filters.ValueBet)
+        addClause(fmt.Sprintf("p.value_bet = $%d", len(args)+1), *filters.ValueBet)
     }
 
     if filters.MinConfidence != nil {
-        addClause(fmt.Sprintf("confidence_score >= $%d", len(args)+1), *filters.MinConfidence)
+        addClause(fmt.Sprintf("p.confidence_score >= $%d", len(args)+1), *filters.MinConfidence)
     }
 
     if filters.MaxConfidence != nil {
-        addClause(fmt.Sprintf("confidence_score <= $%d", len(args)+1), *filters.MaxConfidence)
+        addClause(fmt.Sprintf("p.confidence_score <= $%d", len(args)+1), *filters.MaxConfidence)
     }
 
     if filters.DateFrom != nil {
-        addClause(fmt.Sprintf("prediction_day >= $%d", len(args)+1), *filters.DateFrom)
+        addClause(fmt.Sprintf("p.prediction_day >= $%d", len(args)+1), *filters.DateFrom)
     }
 
     if filters.DateTo != nil {
-        addClause(fmt.Sprintf("prediction_day <= $%d", len(args)+1), *filters.DateTo)
+        addClause(fmt.Sprintf("p.prediction_day <= $%d", len(args)+1), *filters.DateTo)
     }
 
     return clauses, args

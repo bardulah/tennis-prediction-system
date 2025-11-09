@@ -3,6 +3,44 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, Sparkles, TrendingUp, Award, Calendar, Target } from 'lucide-react'
 import AIAnalysisModal from './AIAnalysisModal'
 
+// Helper functions
+function StatusDisplay({ status, score, winner, predicted }) {
+  if (!status || status === 'not_started') {
+    return <span className="text-xs text-slate-400">Not Started</span>
+  }
+
+  if (status === 'live') {
+    return (
+      <div className="flex flex-col gap-1">
+        <span className="flex items-center gap-1 text-xs text-red-300">
+          <span className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></span>
+          Live
+        </span>
+        {score && score !== '-' && <span className="text-xs text-slate-400 font-mono">{score}</span>}
+      </div>
+    )
+  }
+
+  if (status === 'completed') {
+    return (
+      <div className="flex flex-col gap-1">
+        <span className="flex items-center gap-1 text-xs text-emerald-300">
+          <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
+          Finished
+        </span>
+        {winner && (
+          <div className="text-xs text-slate-200">
+            {winner}
+          </div>
+        )}
+        {score && score !== '-' && <span className="text-xs text-slate-400 font-mono">{score}</span>}
+      </div>
+    )
+  }
+
+  return <span className="text-xs text-slate-400">Unknown</span>
+}
+
 export default function HighOddsSection({ data, loading, error }) {
   const [isRolledUp, setIsRolledUp] = useState(true)
   const [selectedMatch, setSelectedMatch] = useState(null)
@@ -196,6 +234,15 @@ function MatchRow({ match, index, onAnalyze }) {
               <Target className="h-3 w-3" />
               {predictedOdds.toFixed(2)}
             </span>
+            
+            {/* Live Status */}
+            <StatusDisplay 
+              status={match.live_status} 
+              score={match.live_score} 
+              winner={match.actual_winner} 
+              predicted={match.predicted_winner}
+            />
+            
             {isBetRecommended && (
               <span className="flex items-center gap-1 text-xs font-semibold text-emerald-300">
                 <TrendingUp className="h-3 w-3" />

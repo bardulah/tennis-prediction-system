@@ -18,7 +18,7 @@ const columns = [
   { key: 'predicted_odds', label: 'Odds', sortable: true },
   { key: 'confidence_score', label: 'Conf.', sortable: true },
   { key: 'recommended_action', label: 'Call', sortable: true },
-  { key: 'prediction_correct', label: 'Result', sortable: false }
+  { key: 'live_status', label: 'Status', sortable: false }
 ]
 
 export default function PredictionTable({
@@ -142,7 +142,14 @@ export default function PredictionTable({
                   <CallBadge action={row.recommended_action} />
                 </td>
                 <td className="px-5 py-4 text-sm">
-                  <ResultBadge correct={row.prediction_correct} winner={row.actual_winner} predicted={row.predicted_winner} />
+                  <LiveStatusBadge 
+                    status={row.live_status} 
+                    score={row.live_score} 
+                    lastUpdated={row.last_updated}
+                    actualWinner={row.actual_winner}
+                    predictedWinner={row.predicted_winner}
+                    predictionCorrect={row.prediction_correct}
+                  />
                 </td>
               </motion.tr>
             ))}
@@ -207,32 +214,62 @@ function ConfidenceBadge({ value, bucket }) {
   )
 }
 
-function ResultBadge({ correct, winner, predicted }) {
-  if (correct === null || correct === undefined) {
-    return <span className="text-xs text-slate-400">Upcoming</span>
-  }
-
-  if (correct) {
-    return (
-      <span className="uiverse-pill text-xs text-emerald-300">
-        ✅ {winner || predicted}
-      </span>
-    )
-  }
-
-  return (
-    <span className="uiverse-pill text-xs text-rose-300">
-      ❌ Predicted {predicted}
-    </span>
-  )
-}
-
 function CallBadge({ action }) {
   if (!action) return <span className="text-xs text-slate-400">—</span>
   const color = action === 'bet' ? 'text-emerald-200' : action === 'monitor' ? 'text-amber-200' : 'text-slate-200'
   return (
     <span className={`uiverse-pill text-xs ${color}`}>{action}</span>
   )
+}
+
+function LiveStatusBadge({ status, score, lastUpdated, actualWinner, predictedWinner, predictionCorrect }) {
+  if (!status || status === 'not_started') {
+    return <span className="text-xs text-slate-400">Not Started</span>
+  }
+
+  if (status === 'live') {
+    return (
+      <div className="flex flex-col gap-1">
+        <span className="uiverse-pill text-xs text-red-300 flex items-center gap-1">
+          <span className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></span>
+          Live
+        </span>
+        {score && score !== '-' && <span className="text-xs text-slate-300 font-mono">{score}</span>}
+      </div>
+    )
+  }
+
+  if (status === 'completed') {
+    return (
+      <div className="flex flex-col gap-1">
+        <span className="uiverse-pill text-xs text-emerald-300 flex items-center gap-1">
+          <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
+          Finished
+        </span>
+        
+        {score && score !== '-' && (
+          <span className="text-xs text-slate-400 font-mono">{score}</span>
+        )}
+        
+        {actualWinner && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-slate-200">
+              {actualWinner}
+            </span>
+            {predictionCorrect !== null && predictionCorrect !== undefined && (
+              <span className={`text-xs font-semibold ${
+                predictionCorrect ? 'text-emerald-300' : 'text-rose-300'
+              }`}>
+                {predictionCorrect ? '✅ Correct' : '❌ Wrong'}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return <span className="text-xs text-slate-400">Unknown</span>
 }
 
 function PageButton({ children, onClick, disabled }) {
