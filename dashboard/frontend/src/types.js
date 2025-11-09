@@ -13,3 +13,14 @@ export const AnalysisResult = {
   analysis: '',
   sources: []
 }
+
+export const SportPick = {
+  league: '',
+  matchup: '',
+  pick: '',
+  reason: '',
+  odds: 0,
+  sourceUrl: '',
+  sourceTitle: '',
+  searchKeyword: ''
+}

@@ -26,7 +26,7 @@ export default function FilterPanel({ filters, onChange, loading }) {
         setFilterOptions({
           tournaments: ['', ...(data.tournaments || [])],
           surfaces: ['', ...(data.surfaces || [])],
-          learningPhases: ['', ...(data.learning_phases || [])]
+          learningPhases: ['', ...(data.learningPhases || [])]
         })
       } catch (error) {
         console.error('Failed to fetch filter options:', error)
@@ -43,6 +43,7 @@ export default function FilterPanel({ filters, onChange, loading }) {
 
     fetchFilterOptions()
   }, [])
+
   const toggleValue = (key, trueValue = 'true', falseValue = 'false') => {
     const current = filters[key]
     if (current === trueValue) {
@@ -122,7 +123,7 @@ export default function FilterPanel({ filters, onChange, loading }) {
             </select>
           </Field>
 
-          <Field label="Tournament" description="Specific tournament">
+          <Field label="Tournament" description="Event venue">
             <select
               value={filters.tournament}
               onChange={handleInput('tournament')}
@@ -137,26 +138,26 @@ export default function FilterPanel({ filters, onChange, loading }) {
             </select>
           </Field>
 
-          <Field label="Learning phase" description="Model maturity">
+          <Field label="Learning Phase" description="Model maturity">
             <select
               value={filters.learningPhase}
               onChange={handleInput('learningPhase')}
               disabled={loadingOptions}
-              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400/40 disabled:opacity-50"
+              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-400/40 disabled:opacity-50"
             >
               {filterOptions.learningPhases.map((phase) => (
                 <option value={phase} key={phase || 'all'}>
-                  {phase ? phase.replaceAll('_', ' ') : 'All phases'}
+                  {phase || 'All phases'}
                 </option>
               ))}
             </select>
           </Field>
 
-          <Field label="Action" description="Recommended call">
+          <Field label="Recommended Action" description="Betting recommendation">
             <select
               value={filters.recommendedAction}
               onChange={handleInput('recommendedAction')}
-              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400/40"
+              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-400/40"
             >
               {actions.map((action) => (
                 <option value={action} key={action || 'all'}>
@@ -167,28 +168,34 @@ export default function FilterPanel({ filters, onChange, loading }) {
           </Field>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Field label="Confidence min" description="0-100">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+          <Field label="Min Confidence" description="Lower bound">
             <input
               type="number"
               value={filters.minConfidence}
               onChange={handleInput('minConfidence')}
-              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40"
-              min={0}
-              max={100}
+              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/40"
+              placeholder="0-100"
+              min="0"
+              max="100"
             />
           </Field>
-          <Field label="Confidence max" description="0-100">
+
+          <Field label="Max Confidence" description="Upper bound">
             <input
               type="number"
               value={filters.maxConfidence}
               onChange={handleInput('maxConfidence')}
-              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400/40"
-              min={0}
-              max={100}
+              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/40"
+              placeholder="0-100"
+              min="0"
+              max="100"
             />
           </Field>
-          <Field label="Date from" description="Start date">
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+          <Field label="Date From" description="Start date">
             <input
               type="date"
               value={filters.dateFrom}
@@ -196,7 +203,8 @@ export default function FilterPanel({ filters, onChange, loading }) {
               className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/40"
             />
           </Field>
-          <Field label="Date to" description="End date">
+
+          <Field label="Date To" description="End date">
             <input
               type="date"
               value={filters.dateTo}

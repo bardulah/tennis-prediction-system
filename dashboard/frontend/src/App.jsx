@@ -3,11 +3,15 @@ import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import { AnimatePresence, motion } from 'framer-motion'
 import { LayoutGrid, List } from 'lucide-react'
-import FilterPanel from './components/FilterPanel.jsx'
+
 import PredictionTable from './components/PredictionTable.jsx'
 import TournamentRolldowns from './components/TournamentRolldowns.jsx'
 import SocialsSection from './components/SocialsSection.jsx'
-import TimelineRail from './components/TimelineRail.jsx'
+import ValueBetsSection from './components/ValueBetsSection.jsx'
+import HighOddsSection from './components/HighOddsSection.jsx'
+import GeminiSearchSection from './components/GeminiSearchSection.jsx'
+import NeonStreamSection from './components/NeonStreamSection.jsx'
+import FilterPanel from './components/FilterPanel.jsx'
 
 const pageSizeOptions = [10, 25, 50, 100]
 
@@ -50,6 +54,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState('rolldowns') // 'rolldowns' or 'table'
   const [pageSize, setPageSize] = useState(viewMode === 'rolldowns' ? 1000 : 25)
   const [showFilters, setShowFilters] = useState(true)
+
   const [filters, setFilters] = useState({
     search: '',
     surface: '',
@@ -115,6 +120,8 @@ export default function App() {
     setPage(1)
     setFilters((current) => ({ ...current, ...next }))
   }
+
+
 
   const totalPages = meta.total_pages ?? meta.totalPages ?? 0
 
@@ -213,7 +220,7 @@ export default function App() {
               onClick={() => setShowFilters(!showFilters)}
             >
               <span>{showFilters ? '🔼' : '🔽'}</span>
-              {showFilters ? 'Hide Filters' : 'Show Filters'}
+              {showFilters ? 'Hide Filters & Stream' : 'Show Filters & Stream'}
               {!showFilters && (
                 <span className="text-xs bg-teal-500/20 text-teal-300 px-2 py-1 rounded-full">
                   {Object.values(filters).filter(v => v !== '').length} active
@@ -223,7 +230,7 @@ export default function App() {
           </div>
         </motion.div>
 
-        {/* Collapsible Filters */}
+        {/* Collapsible Filters and Neon Stream */}
         <AnimatePresence>
           {showFilters && (
             <motion.div
@@ -234,16 +241,30 @@ export default function App() {
               className="overflow-hidden"
             >
               <motion.div
-                className="glass-panel rounded-3xl p-6 border border-slate-800/70 w-full max-w-none"
+                className="grid grid-cols-1 xl:grid-cols-2 gap-6"
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1, duration: 0.3 }}
               >
-                <FilterPanel
-                  filters={filters}
-                  onChange={handleFilterChange}
-                  loading={query.isFetching}
-                />
+                {/* Filter Panel */}
+                <div className="glass-panel rounded-3xl border border-slate-800/70 overflow-hidden">
+                  <div className="p-6">
+                    <FilterPanel
+                      filters={filters}
+                      onChange={handleFilterChange}
+                      loading={query.isFetching}
+                    />
+                  </div>
+                </div>
+
+                {/* Neon Stream */}
+                <div>
+                  <NeonStreamSection
+                    data={query.data?.data ?? []}
+                    loading={query.isLoading || query.isFetching}
+                    error={query.error}
+                  />
+                </div>
               </motion.div>
             </motion.div>
           )}
@@ -252,10 +273,30 @@ export default function App() {
         {/* Community Picks Section */}
         <SocialsSection />
 
+        {/* New Special Sections */}
+        <section className="space-y-8">
+          {/* Value Bets Section - Odds > 1.4 AND action='bet' */}
+          <ValueBetsSection
+            data={query.data?.data ?? []}
+            loading={query.isLoading || query.isFetching}
+            error={query.error}
+          />
+
+          {/* High Odds Section - Odds >= 1.7 */}
+          <HighOddsSection
+            data={query.data?.data ?? []}
+            loading={query.isLoading || query.isFetching}
+            error={query.error}
+          />
+        </section>
+
+        {/* Gemini Search Section */}
+        <section>
+          <GeminiSearchSection />
+        </section>
+
         {/* Timeline and Predictions */}
         <section className="space-y-6">
-          <TimelineRail loading={query.isLoading} total={totalRecords} />
-
           {/* Tournament Rolldowns View */}
           {viewMode === 'rolldowns' && (
             <motion.div
