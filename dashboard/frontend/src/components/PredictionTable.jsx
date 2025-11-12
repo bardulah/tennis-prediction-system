@@ -246,16 +246,11 @@ function LiveStatusBadge({ status, score, lastUpdated, actualWinner, predictedWi
   }
 
   if (status === 'completed') {
-    // Validate that the actual winner is one of the two players
-    // If not, it's likely a wrong match from the scraper
-    const isValidMatch = actualWinner && (actualWinner === player1 || actualWinner === player2)
-
-    // Calculate correctness on the fly if we have actual winner and predicted winner
+    // Calculate correctness on the fly from live results, fall back to database
     let isCorrect = null
-    if (isValidMatch && actualWinner && predictedWinner) {
+    if (actualWinner && predictedWinner) {
       isCorrect = actualWinner === predictedWinner
     } else if (predictionCorrect !== null && predictionCorrect !== undefined) {
-      // Fall back to database value if available
       isCorrect = predictionCorrect
     }
 
@@ -270,7 +265,7 @@ function LiveStatusBadge({ status, score, lastUpdated, actualWinner, predictedWi
           <span className="text-xs text-slate-400 font-mono">{score}</span>
         )}
 
-        {isValidMatch && actualWinner && (
+        {actualWinner && (
           <div className="flex flex-col gap-1">
             <span className="text-xs text-slate-200">
               {actualWinner}
