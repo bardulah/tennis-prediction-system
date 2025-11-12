@@ -144,13 +144,15 @@ export default function PredictionTable({
                   <CallBadge action={row.recommended_action} />
                 </td>
                 <td className="px-5 py-4 text-sm">
-                  <LiveStatusBadge 
-                    status={row.live_status} 
-                    score={row.live_score} 
+                  <LiveStatusBadge
+                    status={row.live_status}
+                    score={row.live_score}
                     lastUpdated={row.last_updated}
                     actualWinner={row.actual_winner}
                     predictedWinner={row.predicted_winner}
                     predictionCorrect={row.prediction_correct}
+                    player1={row.player1}
+                    player2={row.player2}
                   />
                 </td>
               </motion.tr>
@@ -226,7 +228,7 @@ function CallBadge({ action }) {
   )
 }
 
-function LiveStatusBadge({ status, score, lastUpdated, actualWinner, predictedWinner, predictionCorrect }) {
+function LiveStatusBadge({ status, score, lastUpdated, actualWinner, predictedWinner, predictionCorrect, player1, player2 }) {
   if (!status || status === 'not_started') {
     return <span className="text-xs text-slate-400">Not Started</span>
   }
@@ -244,9 +246,13 @@ function LiveStatusBadge({ status, score, lastUpdated, actualWinner, predictedWi
   }
 
   if (status === 'completed') {
+    // Validate that the actual winner is one of the two players
+    // If not, it's likely a wrong match from the scraper
+    const isValidMatch = actualWinner && (actualWinner === player1 || actualWinner === player2)
+
     // Calculate correctness on the fly if we have actual winner and predicted winner
     let isCorrect = null
-    if (actualWinner && predictedWinner) {
+    if (isValidMatch && actualWinner && predictedWinner) {
       isCorrect = actualWinner === predictedWinner
     } else if (predictionCorrect !== null && predictionCorrect !== undefined) {
       // Fall back to database value if available
@@ -264,7 +270,7 @@ function LiveStatusBadge({ status, score, lastUpdated, actualWinner, predictedWi
           <span className="text-xs text-slate-400 font-mono">{score}</span>
         )}
 
-        {actualWinner && (
+        {isValidMatch && actualWinner && (
           <div className="flex flex-col gap-1">
             <span className="text-xs text-slate-200">
               {actualWinner}

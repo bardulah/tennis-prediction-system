@@ -258,6 +258,8 @@ function MatchRow({ match, index, onAnalyze }) {
               correct={match.prediction_correct}
               winner={match.actual_winner}
               predicted={match.predicted_winner}
+              player1={match.player1}
+              player2={match.player2}
             />
           </div>
 
@@ -277,11 +279,20 @@ function MatchRow({ match, index, onAnalyze }) {
   )
 }
 
-function ResultBadge({ correct, winner, predicted }) {
+function ResultBadge({ correct, winner, predicted, player1, player2 }) {
+  // Validate that the winner is one of the two players
+  // If not, it's likely a wrong match from the scraper
+  const isValidMatch = winner && (winner === player1 || winner === player2)
+
   // Calculate correctness on the fly if we have actual winner and predicted winner
   let isCorrect = correct
-  if ((correct === null || correct === undefined) && winner && predicted) {
+  if ((correct === null || correct === undefined) && isValidMatch && winner && predicted) {
     isCorrect = winner === predicted
+  }
+
+  // Only show result if it's a valid match
+  if (!isValidMatch) {
+    return <span className="text-xs text-slate-400">—</span>
   }
 
   if (isCorrect === null || isCorrect === undefined) {
