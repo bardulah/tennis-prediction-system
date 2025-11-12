@@ -101,10 +101,12 @@ async function scrapeLiveScores() {
               const p1 = player1El.textContent?.trim();
               const p2 = player2El.textContent?.trim();
               
-              // Check if this matches our players (with some tolerance for name variations)
-              if (p1 && p2 && 
-                  (p1.includes(player1.split(' ').pop()) || player1.includes(p1)) &&
-                  (p2.includes(player2.split(' ').pop()) || player2.includes(p2))) {
+              // Check if this matches our players - require FULL name match, not just last word
+              // This prevents "A." from matching both "Fiorentini A." and "Weber A."
+              const p1FullMatch = p1 === player1 || player1 === p1;
+              const p2FullMatch = p2 === player2 || player2 === p2;
+
+              if (p1 && p2 && p1FullMatch && p2FullMatch) {
                 
                 // Get the score/status using proper extraction logic
                 const homeSetScore = matchEl.querySelector('.event__score--home')?.textContent?.trim() || '';
