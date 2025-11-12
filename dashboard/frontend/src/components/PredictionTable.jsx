@@ -244,27 +244,36 @@ function LiveStatusBadge({ status, score, lastUpdated, actualWinner, predictedWi
   }
 
   if (status === 'completed') {
+    // Calculate correctness on the fly if we have actual winner and predicted winner
+    let isCorrect = null
+    if (actualWinner && predictedWinner) {
+      isCorrect = actualWinner === predictedWinner
+    } else if (predictionCorrect !== null && predictionCorrect !== undefined) {
+      // Fall back to database value if available
+      isCorrect = predictionCorrect
+    }
+
     return (
       <div className="flex flex-col gap-1">
         <span className="uiverse-pill text-xs text-emerald-300 flex items-center gap-1">
           <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
           Finished
         </span>
-        
+
         {score && score !== '-' && (
           <span className="text-xs text-slate-400 font-mono">{score}</span>
         )}
-        
+
         {actualWinner && (
           <div className="flex flex-col gap-1">
             <span className="text-xs text-slate-200">
               {actualWinner}
             </span>
-            {predictionCorrect !== null && predictionCorrect !== undefined && (
+            {isCorrect !== null && (
               <span className={`text-xs font-semibold ${
-                predictionCorrect ? 'text-emerald-300' : 'text-rose-300'
+                isCorrect ? 'text-emerald-300' : 'text-rose-300'
               }`}>
-                {predictionCorrect ? '✅ Correct' : '❌ Wrong'}
+                {isCorrect ? '✅ Correct' : '❌ Wrong'}
               </span>
             )}
           </div>

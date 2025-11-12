@@ -278,11 +278,17 @@ function MatchRow({ match, index, onAnalyze }) {
 }
 
 function ResultBadge({ correct, winner, predicted }) {
-  if (correct === null || correct === undefined) {
+  // Calculate correctness on the fly if we have actual winner and predicted winner
+  let isCorrect = correct
+  if ((correct === null || correct === undefined) && winner && predicted) {
+    isCorrect = winner === predicted
+  }
+
+  if (isCorrect === null || isCorrect === undefined) {
     return <span className="text-xs text-slate-400">—</span>
   }
 
-  if (correct) {
+  if (isCorrect) {
     return (
       <span className="uiverse-pill text-xs text-emerald-300">
         ✅ {winner || predicted}
