@@ -86,28 +86,25 @@ async function scrapeLiveScores() {
     // Update each match's live status
     for (const match of todayMatches) {
       try {
-        console.log(`[Live Scraper] Processing: ${match.player1} vs ${match.player2} (${match.tournament})`);
-
+        console.log(`[Live Scraper] Processing: ${match.player1} vs ${match.player2}`);
+        
         // Search for this specific match on the page
-        const matchData = await page.evaluate((player1, player2, tournament) => {
+        const matchData = await page.evaluate((player1, player2) => {
           // Find match elements containing both player names
           const matchElements = document.querySelectorAll('.event__match');
-
+          
           for (const matchEl of matchElements) {
             const player1El = matchEl.querySelector('.event__participant--home');
             const player2El = matchEl.querySelector('.event__participant--away');
-
+            
             if (player1El && player2El) {
               const p1 = player1El.textContent?.trim();
               const p2 = player2El.textContent?.trim();
-
-              // Stricter matching: require both full names to match (or at least first 3+ characters each)
-              const p1Match = (p1.includes(player1) || player1.includes(p1) ||
-                              (player1.length >= 3 && p1.length >= 3 && p1.substring(0, 3) === player1.substring(0, 3)));
-              const p2Match = (p2.includes(player2) || player2.includes(p2) ||
-                              (player2.length >= 3 && p2.length >= 3 && p2.substring(0, 3) === player2.substring(0, 3)));
-
-              if (p1 && p2 && p1Match && p2Match) {
+              
+              // Check if this matches our players (with some tolerance for name variations)
+              if (p1 && p2 && 
+                  (p1.includes(player1.split(' ').pop()) || player1.includes(p1)) &&
+                  (p2.includes(player2.split(' ').pop()) || player2.includes(p2))) {
                 
                 // Get the score/status using proper extraction logic
                 const homeSetScore = matchEl.querySelector('.event__score--home')?.textContent?.trim() || '';
@@ -202,7 +199,7 @@ async function scrapeLiveScores() {
           }
           
           return null;
-        }, match.player1, match.player2, match.tournament);
+        }, match.player1, match.player2);
         
         if (matchData) {
           console.log(`[Live Scraper] Found: ${match.player1} vs ${match.player2} - ${matchData.liveStatus} - Score: ${matchData.score}` + (matchData.winner ? ` - Winner: ${matchData.winner}` : ''));
