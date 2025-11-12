@@ -6,10 +6,12 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+    allowedHosts: ['tennis.curak.xyz', 'localhost', '127.0.0.1', '193.24.209.9', '.'],
     proxy: {
       '/api': {
-        target: process.env.VITE_API_BASE_URL || 'http://193.24.209.9:3001',
-        changeOrigin: true
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        ws: true
       }
     }
   }

@@ -133,8 +133,6 @@ export async function analyzeMatchWithPerplexity(match, forceRefresh = false) {
     player2,
     tournament,
     surface,
-    odds_player1,
-    odds_player2,
     prediction_day
   } = match;
 
@@ -147,8 +145,8 @@ Provide a comprehensive betting analysis for this tennis match:
 - Tournament: ${tournament}
 - Surface: ${surface}
 - Date: ${matchDate}
-- Player 1: ${player1} (Odds: ${Number(odds_player1).toFixed(2)})
-- Player 2: ${player2} (Odds: ${Number(odds_player2).toFixed(2)})
+- Player 1: ${player1}
+- Player 2: ${player2}
 
 **Analysis Required:**
 
@@ -177,15 +175,14 @@ Provide a comprehensive betting analysis for this tennis match:
    - Tournament-specific factors (altitude, conditions, schedule)
    - Motivation factors (rankings, titles, head-to-head rivalry)
 
-6. **Betting Value Assessment:**
-   - Analyze the betting odds provided: ${player1} at ${Number(odds_player1).toFixed(2)}, ${player2} at ${Number(odds_player2).toFixed(2)}
-   - Identify any value in the betting markets
-   - Assess risk vs reward based on your analysis
+6. **Key Risk Factors:**
+   - Identify potential momentum shifts or vulnerabilities for each player
+   - Highlight external factors (travel, rest, schedule) that could influence performance
 
 7. **Final Prediction:**
    - Clear winner prediction with expected scoreline
    - Confidence level (high/medium/low) with justification
-   - Alternative betting angles (sets, games, over/under)
+   - Outline situational insights that support the pick
 
 Please use current, real-time data from web searches to ensure accuracy. Format with clear sections using markdown.
 `;
@@ -346,8 +343,6 @@ export async function analyzeMatch(match, forceRefresh = false) {
     player2,
     tournament,
     surface,
-    odds_player1,
-    odds_player2,
     prediction_day
   } = match;
 
@@ -360,8 +355,8 @@ Provide a comprehensive betting analysis for this tennis match:
 - Tournament: ${tournament}
 - Surface: ${surface}
 - Date: ${matchDate}
-- Player 1: ${player1} (Odds: ${Number(odds_player1).toFixed(2)})
-- Player 2: ${player2} (Odds: ${Number(odds_player2).toFixed(2)})
+- Player 1: ${player1}
+- Player 2: ${player2}
 
 **Analysis Required:**
 
@@ -390,15 +385,14 @@ Provide a comprehensive betting analysis for this tennis match:
    - Tournament-specific factors (altitude, conditions, schedule)
    - Motivation factors (rankings, titles, head-to-head rivalry)
 
-6. **Betting Value Assessment:**
-   - Analyze the betting odds provided: ${player1} at ${Number(odds_player1).toFixed(2)}, ${player2} at ${Number(odds_player2).toFixed(2)}
-   - Identify any value in the betting markets
-   - Assess risk vs reward based on your analysis
+6. **Key Risk Factors:**
+   - Identify potential momentum shifts or vulnerabilities for each player
+   - Highlight external factors (travel, rest, schedule) that could influence performance
 
 7. **Final Prediction:**
    - Clear winner prediction with expected scoreline
    - Confidence level (high/medium/low) with justification
-   - Alternative betting angles (sets, games, over/under)
+   - Outline situational insights that support the pick
 
 Please use current, real-time data from web searches to ensure accuracy. Format with clear sections using markdown.
 `;

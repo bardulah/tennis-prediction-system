@@ -1,6 +1,7 @@
 import { useMemo, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import axios from 'axios'
+import { API_BASE_URL } from '../config.js'
 
 const actions = ['', 'bet', 'monitor', 'skip']
 const sortOptions = [
@@ -10,7 +11,7 @@ const sortOptions = [
   { value: 'system_accuracy_at_prediction', label: 'System Accuracy' }
 ]
 
-export default function FilterPanel({ filters, onChange, loading }) {
+export default function FilterPanel({ filters, onChange, loading, onReset, density = 'cozy' }) {
   const [filterOptions, setFilterOptions] = useState({
     tournaments: [''],
     surfaces: [''],
@@ -21,8 +22,7 @@ export default function FilterPanel({ filters, onChange, loading }) {
   useEffect(() => {
     const fetchFilterOptions = async () => {
       try {
-        const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://193.24.209.9:3001'
-        const { data } = await axios.get(`${baseURL}/api/filters`)
+        const { data } = await axios.get(`${API_BASE_URL}/api/filters`)
         setFilterOptions({
           tournaments: ['', ...(data.tournaments || [])],
           surfaces: ['', ...(data.surfaces || [])],
@@ -30,7 +30,6 @@ export default function FilterPanel({ filters, onChange, loading }) {
         })
       } catch (error) {
         console.error('Failed to fetch filter options:', error)
-        // Fallback to minimal options on error
         setFilterOptions({
           tournaments: [''],
           surfaces: ['', 'Hard', 'Clay', 'Grass', 'Carpet'],
@@ -63,6 +62,10 @@ export default function FilterPanel({ filters, onChange, loading }) {
   }
 
   const clearFilters = () => {
+    if (onReset) {
+      onReset()
+      return
+    }
     onChange({
       search: '',
       surface: '',
@@ -78,186 +81,179 @@ export default function FilterPanel({ filters, onChange, loading }) {
     })
   }
 
-  return (
-    <div className="space-y-8">
-      <div className="space-y-3">
-        <h2 className="text-xl font-semibold tracking-tight">Filters</h2>
-        <p className="text-sm text-slate-300/70">
-          Sculpt the dataset. All filters hit live Neon data via the Go API.
-        </p>
-      </div>
+  const containerClasses = density === 'compact' ? 'space-y-6 text-sm' : 'space-y-8'
 
-      <div className="space-y-5">
-        <label className="block">
-          <span className="text-xs uppercase tracking-wider text-slate-400">Search context</span>
-          <div className="relative mt-2">
+  return (
+    <div className={containerClasses}>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <Field label="Search">
+          <div className="relative">
             <motion.div
-              className="absolute inset-0 rounded-2xl bg-gradient-to-br from-teal-400/20 to-sky-500/10 blur"
+              className="absolute inset-0 rounded-xl bg-gradient-to-br from-teal-400/15 to-sky-500/10 blur"
               initial={{ opacity: 0 }}
-              animate={{ opacity: filters.search ? 1 : 0.3 }}
-              transition={{ duration: 0.4 }}
+              animate={{ opacity: filters.search ? 1 : 0.2 }}
+              transition={{ duration: 0.3 }}
             />
             <input
               type="text"
-              placeholder="Tournament / Player"
+              placeholder="Player or tournament"
               value={filters.search}
               onChange={handleInput('search')}
-              className="relative w-full rounded-2xl bg-slate-900/70 border border-slate-700/60 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/60"
+              className="relative w-full rounded-xl bg-slate-950/70 border border-slate-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-400/60"
             />
           </div>
-        </label>
+        </Field>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Field label="Surface" description="Court conditions">
-            <select
-              value={filters.surface}
-              onChange={handleInput('surface')}
-              disabled={loadingOptions}
-              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-400/40 disabled:opacity-50"
-            >
-              {filterOptions.surfaces.map((surface) => (
-                <option value={surface} key={surface || 'all'}>
-                  {surface || 'All surfaces'}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label="Tournament" description="Event venue">
-            <select
-              value={filters.tournament}
-              onChange={handleInput('tournament')}
-              disabled={loadingOptions}
-              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-400/40 disabled:opacity-50"
-            >
-              {filterOptions.tournaments.map((tournament) => (
-                <option value={tournament} key={tournament || 'all'}>
-                  {tournament || 'All tournaments'}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label="Learning Phase" description="Model maturity">
-            <select
-              value={filters.learningPhase}
-              onChange={handleInput('learningPhase')}
-              disabled={loadingOptions}
-              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-400/40 disabled:opacity-50"
-            >
-              {filterOptions.learningPhases.map((phase) => (
-                <option value={phase} key={phase || 'all'}>
-                  {phase || 'All phases'}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label="Recommended Action" description="Betting recommendation">
-            <select
-              value={filters.recommendedAction}
-              onChange={handleInput('recommendedAction')}
-              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-400/40"
-            >
-              {actions.map((action) => (
-                <option value={action} key={action || 'all'}>
-                  {action || 'All actions'}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
-          <Field label="Min Confidence" description="Lower bound">
-            <input
-              type="number"
-              value={filters.minConfidence}
-              onChange={handleInput('minConfidence')}
-              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/40"
-              placeholder="0-100"
-              min="0"
-              max="100"
-            />
-          </Field>
-
-          <Field label="Max Confidence" description="Upper bound">
-            <input
-              type="number"
-              value={filters.maxConfidence}
-              onChange={handleInput('maxConfidence')}
-              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/40"
-              placeholder="0-100"
-              min="0"
-              max="100"
-            />
-          </Field>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
-          <Field label="Date From" description="Start date">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="From">
             <input
               type="date"
-              value={filters.dateFrom}
+              value={filters.dateFrom || ''}
               onChange={handleInput('dateFrom')}
-              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/40"
+              className="w-full rounded-xl bg-slate-950/70 border border-slate-800 px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-400/60"
             />
           </Field>
-
-          <Field label="Date To" description="End date">
+          <Field label="To">
             <input
               type="date"
-              value={filters.dateTo}
+              value={filters.dateTo || ''}
               onChange={handleInput('dateTo')}
-              className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/40"
+              className="w-full rounded-xl bg-slate-950/70 border border-slate-800 px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-400/60"
             />
           </Field>
         </div>
+      </div>
 
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-[200px]">
-            <Field label="Sort by" description="Sort criteria">
-              <select
-                value={filters.sortBy}
-                onChange={handleInput('sortBy')}
-                className="w-full rounded-2xl bg-slate-900/70 border border-slate-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40"
-              >
-                {sortOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          <button
-            onClick={() => onChange({ sortDir: filters.sortDir === 'DESC' ? 'ASC' : 'DESC' })}
-            className="uiverse-pill text-xs uppercase px-4 py-3"
-            type="button"
+      <div className="grid gap-4 md:grid-cols-3">
+        <Field label="Surface">
+          <select
+            value={filters.surface}
+            onChange={handleInput('surface')}
+            disabled={loadingOptions}
+            className="w-full rounded-xl bg-slate-950/70 border border-slate-800 px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-fuchsia-400/50 disabled:opacity-50"
           >
-            {filters.sortDir === 'DESC' ? 'Newest' : 'Oldest'}
-          </button>
-        </div>
+            {filterOptions.surfaces.map((surface) => (
+              <option value={surface} key={surface || 'all'}>
+                {surface || 'Any surface'}
+              </option>
+            ))}
+          </select>
+        </Field>
 
-        <div className="space-y-4">
-          <ToggleCard
-            label="Only correct predictions"
-            active={isPredictionCorrect}
-            onToggle={() => toggleValue('predictionCorrect')}
+        <Field label="Tournament">
+          <select
+            value={filters.tournament}
+            onChange={handleInput('tournament')}
+            disabled={loadingOptions}
+            className="w-full rounded-xl bg-slate-950/70 border border-slate-800 px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-fuchsia-400/50 disabled:opacity-50"
+          >
+            {filterOptions.tournaments.map((tournament) => (
+              <option value={tournament} key={tournament || 'all'}>
+                {tournament || 'Any tournament'}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Learning phase">
+          <select
+            value={filters.learningPhase}
+            onChange={handleInput('learningPhase')}
+            disabled={loadingOptions}
+            className="w-full rounded-xl bg-slate-950/70 border border-slate-800 px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-fuchsia-400/50 disabled:opacity-50"
+          >
+            {filterOptions.learningPhases.map((phase) => (
+              <option value={phase} key={phase || 'all'}>
+                {phase || 'Any phase'}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Field label="Action">
+          <select
+            value={filters.recommendedAction}
+            onChange={handleInput('recommendedAction')}
+            className="w-full rounded-xl bg-slate-950/70 border border-slate-800 px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-fuchsia-400/50"
+          >
+            {actions.map((action) => (
+              <option value={action} key={action || 'all'}>
+                {action || 'Any call'}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Confidence from">
+          <input
+            type="number"
+            value={filters.minConfidence}
+            onChange={handleInput('minConfidence')}
+            className="w-full rounded-xl bg-slate-950/70 border border-slate-800 px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-400/50"
+            placeholder="0-100"
+            min="0"
+            max="100"
           />
-          <ToggleCard
-            label="Show value bets"
-            active={isValueBet}
-            onToggle={() => toggleValue('valueBet')}
+        </Field>
+
+        <Field label="Confidence to">
+          <input
+            type="number"
+            value={filters.maxConfidence}
+            onChange={handleInput('maxConfidence')}
+            className="w-full rounded-xl bg-slate-950/70 border border-slate-800 px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-400/50"
+            placeholder="0-100"
+            min="0"
+            max="100"
           />
+        </Field>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => onChange({ sortDir: filters.sortDir === 'DESC' ? 'ASC' : 'DESC' })}
+          className="rounded-full border border-slate-700/70 px-3 py-2 text-xs uppercase tracking-widest text-slate-300 hover:border-teal-500/50 hover:text-teal-200 transition-colors"
+        >
+          {filters.sortDir === 'DESC' ? 'Newest first' : 'Oldest first'}
+        </button>
+        <div className="flex-1 min-w-[200px]">
+          <Field label="Sort by">
+            <select
+              value={filters.sortBy}
+              onChange={handleInput('sortBy')}
+              className="w-full rounded-xl bg-slate-950/70 border border-slate-800 px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-400/50"
+            >
+              {sortOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </Field>
         </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <ToggleCard
+          label="Only scored winners"
+          active={isPredictionCorrect}
+          onToggle={() => toggleValue('predictionCorrect')}
+        />
+        <ToggleCard
+          label="Surface value bets"
+          active={isValueBet}
+          onToggle={() => toggleValue('valueBet')}
+        />
       </div>
 
       <motion.button
         type="button"
-        className="uiverse-button w-full justify-center"
+        className="w-full rounded-xl border border-slate-700/70 bg-slate-900/60 py-2.5 text-sm font-medium text-slate-100 hover:border-teal-500/50 hover:text-teal-200 transition-colors"
         onClick={clearFilters}
         disabled={loading}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.97 }}
+        whileHover={{ scale: loading ? 1 : 1.01 }}
+        whileTap={{ scale: loading ? 1 : 0.99 }}
       >
         Reset filters
       </motion.button>
@@ -267,13 +263,11 @@ export default function FilterPanel({ filters, onChange, loading }) {
 
 function Field({ label, description, children }) {
   return (
-    <label className="space-y-2 block">
-      <div>
-        <span className="block text-xs uppercase tracking-widest text-slate-500">{label}</span>
-        {description && (
-          <span className="block text-xs text-slate-400/70">{description}</span>
-        )}
-      </div>
+    <label className="space-y-1 block">
+      <span className="block text-[11px] uppercase tracking-[0.24em] text-slate-500">{label}</span>
+      {description && (
+        <span className="block text-xs text-slate-400/70">{description}</span>
+      )}
       {children}
     </label>
   )
@@ -286,8 +280,8 @@ function ToggleCard({ label, active, onToggle }) {
       onClick={onToggle}
       whileHover={{ scale: 1.01 }}
       whileTap={{ scale: 0.98 }}
-      className={`w-full flex items-center justify-between rounded-2xl border px-4 py-3 transition-colors ${
-        active ? 'border-teal-400/70 bg-teal-500/10' : 'border-slate-800 bg-slate-900/60'
+      className={`w-full flex items-center justify-between rounded-xl border px-4 py-3 transition-colors ${
+        active ? 'border-teal-400/70 bg-teal-500/15' : 'border-slate-800 bg-slate-950/60'
       }`}
     >
       <span className="text-sm font-medium text-slate-200">{label}</span>

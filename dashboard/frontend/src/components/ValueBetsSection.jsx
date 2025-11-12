@@ -1,44 +1,35 @@
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, Sparkles, TrendingUp, Award, Calendar } from 'lucide-react'
+import { ChevronDown, Sparkles, TrendingUp } from 'lucide-react'
 import AIAnalysisModal from './AIAnalysisModal'
 
 // Helper functions
-function StatusDisplay({ status, score, winner, predicted }) {
+function StatusDisplay({ status, score, winner }) {
+  const formattedScore = score && score !== '-' ? ` (${score})` : ''
+
   if (!status || status === 'not_started') {
-    return <span className="text-xs text-slate-400">Not Started</span>
+    return <span className="inline-flex items-center text-xs text-slate-400">Not started</span>
   }
 
   if (status === 'live') {
     return (
-      <div className="flex flex-col gap-1">
-        <span className="flex items-center gap-1 text-xs text-red-300">
-          <span className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></span>
-          Live
-        </span>
-        {score && score !== '-' && <span className="text-xs text-slate-400 font-mono">{score}</span>}
-      </div>
+      <span className="inline-flex items-center gap-1 text-xs text-rose-300">
+        <span className="w-2 h-2 bg-rose-400 rounded-full animate-pulse" />
+        Live{formattedScore}
+      </span>
     )
   }
 
   if (status === 'completed') {
     return (
-      <div className="flex flex-col gap-1">
-        <span className="flex items-center gap-1 text-xs text-emerald-300">
-          <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
-          Finished
-        </span>
-        {winner && (
-          <div className="text-xs text-slate-200">
-            {winner}
-          </div>
-        )}
-        {score && score !== '-' && <span className="text-xs text-slate-400 font-mono">{score}</span>}
-      </div>
+      <span className="inline-flex items-center gap-1 text-xs text-emerald-300">
+        <span className="w-2 h-2 bg-emerald-400 rounded-full" />
+        Finished{winner ? ` – ${winner}` : ''}{formattedScore}
+      </span>
     )
   }
 
-  return <span className="text-xs text-slate-400">Unknown</span>
+  return <span className="inline-flex items-center text-xs text-slate-400">Unknown</span>
 }
 
 export default function ValueBetsSection({ data, loading, error }) {
@@ -109,16 +100,16 @@ export default function ValueBetsSection({ data, loading, error }) {
   return (
     <>
       <motion.div
-        className="glass-panel rounded-3xl border border-slate-800/70 overflow-hidden"
+        className="rounded-3xl border border-slate-800/70 bg-slate-950/55 overflow-hidden shadow-[0_0_40px_rgba(10,20,40,0.24)]"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
       >
         {/* Section Header */}
         <motion.button
-          className="w-full flex items-center justify-between p-6 text-left transition-colors hover:bg-slate-900/40"
+          className="w-full flex items-center justify-between px-6 py-5 text-left transition-colors hover:bg-slate-900/35"
           onClick={toggleRollup}
-          whileHover={{ backgroundColor: 'rgba(15, 23, 42, 0.4)' }}
+          whileHover={{ backgroundColor: 'rgba(15, 23, 42, 0.35)' }}
         >
           <div className="flex items-center gap-4 flex-1 min-w-0">
             <div className="p-2 rounded-xl bg-gradient-to-br from-teal-500/20 to-emerald-500/20 border border-teal-500/30">
@@ -207,124 +198,66 @@ function MatchRow({ match, index, onAnalyze }) {
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.05 }}
-      className="border-b border-slate-800/50 p-4 transition-colors hover:bg-slate-800/30 bg-teal-500/5"
+      className="border-b border-slate-800/45 bg-teal-500/5 px-4 py-3 transition-colors hover:bg-teal-500/10"
     >
-      <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-        {/* Match Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 mb-2">
-            <span className="text-xs text-slate-500">
-              {formatDay(match.prediction_day)}
-            </span>
-            <span className="text-xs text-slate-400">
-              {match.tournament}
-            </span>
-            <span className="flex items-center gap-1 text-xs font-semibold text-teal-300">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_auto] items-center">
+        <div className="space-y-1.5 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <span>{formatDay(match.prediction_day)}</span>
+            <span>{match.tournament}</span>
+            <span className="flex items-center gap-1 text-teal-300 font-semibold">
               <TrendingUp className="h-3 w-3" />
               Value Bet
             </span>
-            
-            {/* Live Status */}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-100 leading-tight">
+            <span>{match.player1}</span>
+            <span className="text-slate-500">vs</span>
+            <span>{match.player2}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+            <span>{Number(match.odds_player1).toFixed(2)} / {Number(match.odds_player2).toFixed(2)}</span>
+            <span className="text-teal-300 font-semibold">Predicted {predictedOdds.toFixed(2)}</span>
+          </div>
+          <div className="pt-0.5">
             <StatusDisplay 
               status={match.live_status} 
               score={match.live_score} 
-              winner={match.actual_winner} 
-              predicted={match.predicted_winner}
-            />
-          </div>
-
-          {/* Players */}
-          <div className="flex items-center gap-3 mb-2">
-            <div className="flex items-center gap-2 flex-1">
-              <span className="font-semibold text-slate-100">{match.player1}</span>
-              <span className="text-xs text-slate-500">vs</span>
-              <span className="font-semibold text-slate-100">{match.player2}</span>
-            </div>
-          </div>
-
-          {/* Odds */}
-          <div className="flex items-center gap-4 text-xs text-slate-400">
-            <span>
-              Odds: {Number(match.odds_player1).toFixed(2)} / {Number(match.odds_player2).toFixed(2)}
-            </span>
-            <span className="text-teal-300 font-semibold">
-              Predicted: {predictedOdds.toFixed(2)}
-            </span>
-          </div>
-        </div>
-
-        {/* Prediction */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="text-center">
-            <div className="text-xs text-slate-500 mb-1">Prediction</div>
-            <div className="font-semibold text-emerald-300 flex items-center gap-1">
-              <span>🏆</span>
-              <span className="text-sm">{match.predicted_winner}</span>
-            </div>
-            <div className="text-xs text-slate-400 mt-1">
-              @ {predictedOdds.toFixed(2)}
-            </div>
-          </div>
-
-          {/* Confidence Badge */}
-          <div className="text-center">
-            <div className="text-xs text-slate-500 mb-1">Confidence</div>
-            <span className={`inline-flex px-3 py-1 rounded-full bg-gradient-to-r ${confidenceColor} text-slate-900 text-sm font-semibold`}>
-              {match.confidence_score}%
-            </span>
-          </div>
-
-          {/* Action */}
-          <div className="text-center">
-            <div className="text-xs text-slate-500 mb-1">Action</div>
-            <span className="uiverse-pill text-xs text-emerald-200">
-              {match.recommended_action || 'N/A'}
-            </span>
-          </div>
-
-          {/* Result */}
-          <div className="text-center">
-            <div className="text-xs text-slate-500 mb-1">Result</div>
-            <ResultBadge
-              correct={match.prediction_correct}
               winner={match.actual_winner}
-              predicted={match.predicted_winner}
             />
           </div>
-
-          {/* AI Analysis Button */}
-          <motion.button
-            onClick={() => onAnalyze(match)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-purple-300 text-sm font-medium transition-all hover:from-purple-500/30 hover:to-pink-500/30 hover:border-purple-400/50"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Sparkles className="h-4 w-4" />
-            <span className="hidden sm:inline">Analyze</span>
-          </motion.button>
         </div>
+
+        <div className="text-center text-xs text-slate-400">
+          <span className="uppercase tracking-[0.25em]">Winner:</span>
+          <span className="ml-1 text-sm font-semibold text-emerald-300">{match.predicted_winner}</span>
+        </div>
+
+        <div className="text-center text-xs text-slate-400">
+          <span className="uppercase tracking-[0.25em]">Conf:</span>
+          <span className={`ml-1 inline-flex px-2 py-0.5 rounded-full bg-gradient-to-r ${confidenceColor} text-slate-900 text-sm font-semibold`}>
+            {match.confidence_score}%
+          </span>
+        </div>
+
+        <div className="text-center text-xs text-slate-400">
+          <span className="uppercase tracking-[0.25em]">Action:</span>
+          <span className="ml-1 uiverse-pill text-xs text-emerald-200">
+            {match.recommended_action || 'N/A'}
+          </span>
+        </div>
+
+        <motion.button
+          onClick={() => onAnalyze(match)}
+          className="ml-auto flex items-center gap-1.5 rounded-xl border border-purple-500/30 px-3 py-1.5 text-xs font-medium text-purple-200 hover:border-purple-400/50 transition-colors"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <Sparkles className="h-3.5 w-3.5" />
+          Analyze
+        </motion.button>
       </div>
     </motion.div>
-  )
-}
-
-function ResultBadge({ correct, winner, predicted }) {
-  if (correct === null || correct === undefined) {
-    return <span className="text-xs text-slate-400">Upcoming</span>
-  }
-
-  if (correct) {
-    return (
-      <span className="uiverse-pill text-xs text-emerald-300">
-        ✅ {winner || predicted}
-      </span>
-    )
-  }
-
-  return (
-    <span className="uiverse-pill text-xs text-rose-300">
-      ❌ {predicted}
-    </span>
   )
 }
 

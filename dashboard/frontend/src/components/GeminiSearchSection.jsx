@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Search, ExternalLink, Loader2, Sparkles, AlertCircle, TrendingUp } from 'lucide-react'
+import { Search, ExternalLink, Loader2, Sparkles, AlertCircle, TrendingUp, CalendarClock } from 'lucide-react'
 import { fetchSportsPicks } from '../services/geminiSearch'
 
 export default function GeminiSearchSection() {
@@ -35,6 +35,20 @@ export default function GeminiSearchSection() {
     setQuery('')
     setSearchResults(null)
     setError(null)
+  }
+
+  const formatEventStart = (isoString) => {
+    if (!isoString) return null
+    const date = new Date(isoString)
+    if (Number.isNaN(date.getTime())) return null
+    return date.toLocaleString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    })
   }
 
   return (
@@ -132,7 +146,7 @@ export default function GeminiSearchSection() {
           animate={{ opacity: 1, y: 0 }}
         >
           <div className="flex items-center gap-2 text-sm text-slate-400">
-            <span>Found {searchResults.picks.length} pick{searchResults.picks.length !== 1 ? 's' : ''}</span>
+            <span>Found {searchResults.picks.length} upcoming pick{searchResults.picks.length !== 1 ? 's' : ''}</span>
             {searchResults.picks.length > 0 && (
               <span>for "{query}"</span>
             )}
@@ -141,7 +155,7 @@ export default function GeminiSearchSection() {
           {searchResults.picks.length === 0 ? (
             <div className="rounded-2xl border border-slate-800/70 bg-slate-950/30 p-8 text-center">
               <Sparkles className="h-8 w-8 text-slate-400 mx-auto mb-3" />
-              <p className="text-slate-400">No sports picks found for this query</p>
+              <p className="text-slate-400">No upcoming sports picks found for this query</p>
               <p className="text-sm text-slate-500 mt-2">Try different keywords or check back later</p>
             </div>
           ) : (
@@ -168,6 +182,12 @@ export default function GeminiSearchSection() {
                           )}
                         </div>
                         <h3 className="font-semibold text-slate-100">{pick.matchup}</h3>
+                        {formatEventStart(pick.eventStartTime) && (
+                          <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
+                            <CalendarClock className="h-3.5 w-3.5" />
+                            <span>{formatEventStart(pick.eventStartTime)}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 

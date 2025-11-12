@@ -1,57 +1,72 @@
-import { GoogleGenAI } from "@google/genai";
-import { SportPick } from '../types';
+import { GoogleGenAI } from '@google/genai'
+import { SportPick } from '../types'
 
 if (!import.meta.env.VITE_GOOGLE_AI_API_KEY) {
-    console.error("VITE_GOOGLE_AI_API_KEY environment variable not set.");
+  console.error('VITE_GOOGLE_AI_API_KEY environment variable not set.')
 }
 
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GOOGLE_AI_API_KEY });
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GOOGLE_AI_API_KEY })
 
 const cleanJsonString = (str) => {
-  // Remove markdown formatting and trim whitespace
-  return str.replace(/^```json\s*|```$/g, '').trim();
-};
+  return str.replace(/^```json\s*|```$/g, '').trim()
+}
 
 export const fetchSportsPicks = async (userQuery) => {
-  const systemInstruction = `You are an expert sports betting analyst. Your goal is to find the best sports betting picks for the user for the current day by searching the web. When searching, consider a wide range of sources including popular sports news websites, blogs, and discussions on social platforms like X (formerly Twitter) or Reddit.
+  const now = new Date()
+  const isoNow = now.toISOString()
+  const todayDisplay = now.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric'
+  })
 
-For each pick, provide a concise summary, its decimal odds, and its source.
+  const systemInstruction = `You are an expert sports betting analyst. Today is ${todayDisplay}, and the current UTC time is ${isoNow}. Your job is to return only upcoming sports betting picks that have not started yet. You must verify each event date and time from the sources you consult.
 
-ALWAYS respond with a valid JSON object in a string format. Do not add any markdown formatting like \`\`\`json. The JSON object must have a single key 'picks' which is an array of objects.
+For each pick that remains, provide a concise summary, decimal odds, and the source link.
 
-Each object must have the following properties:
-- 'league': string
-- 'matchup': string
-- 'pick': string
-- 'reason': string
-- 'odds': number (if available)
-- 'sourceUrl': string (the direct URL of the source article/post)
-- 'sourceTitle': string (the title of the source article/post)
-- 'searchKeyword': string (the single most unique team or player name from the matchup to use for a search query)
-
-If you cannot find any picks, return an empty array for the 'picks' key.`;
+Rules you must follow:
+1. Exclude any pick if the event has already started or finished. If you cannot confirm that the event is upcoming, omit it.
+2. ALWAYS respond with a valid JSON object string (no markdown). The JSON must contain a single key called 'picks' mapped to an array.
+3. Every pick object must include:
+   - 'league': string
+   - 'matchup': string
+   - 'pick': string
+   - 'reason': string
+   - 'odds': number (if available)
+   - 'eventStartTime': string (ISO 8601, e.g. 2024-05-01T19:30:00Z)
+   - 'sourceUrl': string
+   - 'sourceTitle': string
+   - 'searchKeyword': string
+4. Ensure the 'eventStartTime' is on or after ${isoNow}.
+5. If no valid upcoming picks are available, return { "picks": [] }.`
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: 'gemini-2.5-flash',
       contents: [
-          { role: 'user', parts: [{ text: systemInstruction }] },
-          { role: 'model', parts: [{ text: 'OK, I will find the best sports picks and respond in the required JSON format.' }] },
-          { role: 'user', parts: [{ text: userQuery }] },
+        { role: 'user', parts: [{ text: systemInstruction }] },
+        { role: 'model', parts: [{ text: 'Understood. I will respond with upcoming picks in the required JSON format.' }] },
+        { role: 'user', parts: [{ text: userQuery }] }
       ],
       config: {
-        tools: [{ googleSearch: {} }],
-      },
-    });
+        tools: [{ googleSearch: {} }]
+      }
+    })
 
-    const jsonText = cleanJsonString(response.text);
-    const parsedData = JSON.parse(jsonText);
-    const picks = parsedData.picks || [];
+    const jsonText = cleanJsonString(response.text)
+    const parsedData = JSON.parse(jsonText)
+    const picks = Array.isArray(parsedData.picks) ? parsedData.picks : []
 
-    return { picks };
+    const upcomingPicks = picks.filter((pick) => {
+      if (!pick || !pick.eventStartTime) return false
+      const startTime = new Date(pick.eventStartTime)
+      if (Number.isNaN(startTime.getTime())) return false
+      return startTime.getTime() >= now.getTime()
+    })
 
+    return { picks: upcomingPicks }
   } catch (error) {
-    console.error("Error fetching or parsing sports picks:", error);
-    throw new Error("Failed to get a valid response from the AI model.");
+    console.error('Error fetching or parsing sports picks:', error)
+    throw new Error('Failed to get a valid response from the AI model.')
   }
-};
+}

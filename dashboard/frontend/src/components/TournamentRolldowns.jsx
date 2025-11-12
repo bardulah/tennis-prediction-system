@@ -206,6 +206,14 @@ function MatchRow({ match, index, onAnalyze }) {
               Odds: {Number(match.odds_player1).toFixed(2)} / {Number(match.odds_player2).toFixed(2)}
             </span>
           </div>
+          <div className="mt-2">
+            <StatusDisplay
+              status={match.live_status}
+              score={match.live_score}
+              winner={match.actual_winner}
+              predicted={match.predicted_winner}
+            />
+          </div>
         </div>
 
         {/* Prediction */}
@@ -271,7 +279,7 @@ function MatchRow({ match, index, onAnalyze }) {
 
 function ResultBadge({ correct, winner, predicted }) {
   if (correct === null || correct === undefined) {
-    return <span className="text-xs text-slate-400">Upcoming</span>
+    return <span className="text-xs text-slate-400">—</span>
   }
 
   if (correct) {
@@ -287,6 +295,39 @@ function ResultBadge({ correct, winner, predicted }) {
       ❌ {predicted}
     </span>
   )
+}
+
+function StatusDisplay({ status, score, winner, predicted }) {
+  if (!status || status === 'not_started') {
+    return <div className="text-xs text-slate-400">Not Started</div>
+  }
+
+  if (status === 'live') {
+    return (
+      <div className="flex flex-col gap-1">
+        <span className="flex items-center gap-1 text-xs text-rose-300">
+          <span className="w-2 h-2 bg-rose-400 rounded-full animate-pulse"></span>
+          Live
+        </span>
+        {score && score !== '-' && <span className="text-xs text-slate-300 font-mono">{score}</span>}
+      </div>
+    )
+  }
+
+  if (status === 'completed') {
+    return (
+      <div className="flex flex-col gap-1">
+        <span className="flex items-center gap-1 text-xs text-emerald-300">
+          <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
+          Finished
+        </span>
+        {winner && <span className="text-xs text-slate-200">{winner}</span>}
+        {score && score !== '-' && <span className="text-xs text-slate-300 font-mono">{score}</span>}
+      </div>
+    )
+  }
+
+  return <div className="text-xs text-slate-400">Unknown</div>
 }
 
 function LoadingSkeleton() {

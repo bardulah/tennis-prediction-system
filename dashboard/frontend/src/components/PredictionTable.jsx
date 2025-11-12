@@ -37,8 +37,10 @@ export default function PredictionTable({
   sortBy = '',
   sortDir = 'DESC'
 }) {
+  const shouldShowPagination = (totalPages && totalPages > 1) || (pageSize && totalRecords && pageSize < totalRecords)
+
   return (
-    <div className="overflow-hidden">
+    <div className="w-full">
       <div className="overflow-x-auto">
         <table className="min-w-full border-collapse">
           <thead className="bg-slate-900/80">
@@ -162,26 +164,28 @@ export default function PredictionTable({
           Showing <span className="text-slate-200">{data.length}</span> of <span className="text-slate-200">{totalRecords}</span> predictions
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-400">
-            Page size
-            <select
-              value={pageSize}
-              onChange={(event) => onPageSizeChange(Number(event.target.value))}
-              className="rounded-2xl bg-slate-900/80 border border-slate-700/70 px-3 py-1.5 text-sm text-slate-100"
-            >
-              {pageSizeOptions.map((size) => (
-                <option key={size} value={size}>{size}</option>
-              ))}
-            </select>
-          </label>
+        {shouldShowPagination && (
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-400">
+              Page size
+              <select
+                value={pageSize}
+                onChange={(event) => onPageSizeChange(Number(event.target.value))}
+                className="rounded-2xl bg-slate-900/80 border border-slate-700/70 px-3 py-1.5 text-sm text-slate-100"
+              >
+                {pageSizeOptions.map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+            </label>
 
-          <div className="flex items-center gap-2">
-            <PageButton disabled={page <= 1} onClick={() => onPageChange(page - 1)}>Prev</PageButton>
-            <span className="text-sm text-slate-300">{page} / {Math.max(totalPages, 1)}</span>
-            <PageButton disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Next</PageButton>
+            <div className="flex items-center gap-2">
+              <PageButton disabled={page <= 1} onClick={() => onPageChange(page - 1)}>Prev</PageButton>
+              <span className="text-sm text-slate-300">{page} / {Math.max(totalPages, 1)}</span>
+              <PageButton disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Next</PageButton>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   )

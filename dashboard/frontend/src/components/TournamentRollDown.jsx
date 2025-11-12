@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import axios from 'axios'
+import { API_BASE_URL } from '../config.js'
 
 export default function TournamentRollDown({ onTournamentSelect, selectedTournament }) {
   const [tournaments, setTournaments] = useState([])
@@ -11,8 +12,7 @@ export default function TournamentRollDown({ onTournamentSelect, selectedTournam
     const fetchTournaments = async () => {
       setLoading(true)
       try {
-        const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://193.24.209.9:3001'
-        const { data } = await axios.get(`${baseURL}/api/tournaments`)
+        const { data } = await axios.get(`${API_BASE_URL}/api/tournaments`)
         setTournaments(data.data)
       } catch (error) {
         console.error('Failed to fetch tournaments:', error)

@@ -333,6 +333,7 @@ CREATE TABLE live_matches (
     match_identifier VARCHAR(255) UNIQUE NOT NULL,  -- Matches predictions.match_id format
     live_score VARCHAR(100),
     live_status VARCHAR(50) NOT NULL DEFAULT 'not_started',  -- 'not_started', 'live', 'completed'
+    actual_winner VARCHAR(255),
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -346,15 +347,17 @@ CREATE INDEX idx_live_matches_updated ON live_matches(last_updated);
 CREATE OR REPLACE FUNCTION update_live_match(
     p_match_identifier VARCHAR(255),
     p_live_score VARCHAR(100),
-    p_live_status VARCHAR(50)
+    p_live_status VARCHAR(50),
+    p_actual_winner VARCHAR(255)
 ) RETURNS VOID AS $$
 BEGIN
-    INSERT INTO live_matches (match_identifier, live_score, live_status)
-    VALUES (p_match_identifier, p_live_score, p_live_status)
+    INSERT INTO live_matches (match_identifier, live_score, live_status, actual_winner)
+    VALUES (p_match_identifier, p_live_score, p_live_status, p_actual_winner)
     ON CONFLICT (match_identifier) 
     DO UPDATE SET 
-        live_score = p_live_score,
-        live_status = p_live_status,
+        live_score = EXCLUDED.live_score,
+        live_status = EXCLUDED.live_status,
+        actual_winner = COALESCE(EXCLUDED.actual_winner, live_matches.actual_winner),
         last_updated = NOW();
 END;
 $$ LANGUAGE plpgsql;
