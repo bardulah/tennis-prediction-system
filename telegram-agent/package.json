@@ -1,0 +1,20 @@
+{
+  "name": "tennis-telegram-agent",
+  "version": "1.0.0",
+  "description": "AI-powered Telegram bot for tennis prediction queries and analysis",
+  "main": "telegram-bot.js",
+  "scripts": {
+    "start": "node telegram-bot.js",
+    "dev": "NODE_ENV=development node telegram-bot.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.0",
+    "@modelcontextprotocol/sdk": "^1.0.1",
+    "axios": "^1.6.0",
+    "node-telegram-bot-api": "^0.63.0",
+    "pg": "^8.11.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
