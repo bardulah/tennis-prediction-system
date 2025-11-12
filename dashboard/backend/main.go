@@ -146,6 +146,7 @@ func (s *server) handleListPredictions(w http.ResponseWriter, r *http.Request) {
     var results []prediction
     for rows.Next() {
         var p prediction
+        var liveActualWinner *string // Separate variable for live_matches.actual_winner
         err := rows.Scan(
             &p.PredictionID,
             &p.MatchID,
@@ -180,8 +181,12 @@ func (s *server) handleListPredictions(w http.ResponseWriter, r *http.Request) {
             &p.LiveScore,
             &p.LiveStatus,
             &p.LastUpdated,
-            &p.ActualWinner,
+            &liveActualWinner,
         )
+        // Use live_matches.actual_winner if available, otherwise keep predictions.actual_winner
+        if liveActualWinner != nil && *liveActualWinner != "" && (p.ActualWinner == nil || *p.ActualWinner == "") {
+            p.ActualWinner = liveActualWinner
+        }
         if err != nil {
             httpError(w, err, http.StatusInternalServerError)
             return
