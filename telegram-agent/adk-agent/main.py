@@ -145,6 +145,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def telegram_webhook(request: Request):
     """Handle Telegram webhook updates."""
     update_data = await request.json()
+    
+    # Initialize the application if not already done
+    if not hasattr(application, '_initialized') or not application._initialized:
+        await application.initialize()
+        application._initialized = True
+    
     update = Update.de_json(update_data, application.bot)
     await application.process_update(update)
     return Response(status_code=200)

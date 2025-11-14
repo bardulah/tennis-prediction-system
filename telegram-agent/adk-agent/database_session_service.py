@@ -127,13 +127,21 @@ class DatabaseSessionService(BaseSessionService):
                 initial_state = initial_state or {}
                 metadata = metadata or {}
                 
+                # Convert to ADK expected format with camelCase fields and limit to required fields only
+                session_data = {
+                    'id': session_id,
+                    'appName': app_name, 
+                    'userId': user_id
+                    # ADK expects only these required fields, no extras
+                }
+                
                 cur.execute("""
                     INSERT INTO agent_sessions 
-                    (session_id, user_id, app_name, state, metadata, last_activity, conversation_count, total_events)
-                    VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP, 0, 0)
+                    (session_id, user_id, app_name, state, metadata)
+                    VALUES (%s, %s, %s, %s, %s)
                     ON CONFLICT (session_id) DO UPDATE SET
-                        state = COALESCE(agent_sessions.state, '{}') || EXCLUDED.state,
-                        metadata = COALESCE(agent_sessions.metadata, '{}') || EXCLUDED.metadata,
+                        state = COALESCE(agent_sessions.state, '{}'),
+                        metadata = COALESCE(agent_sessions.metadata, '{}'),
                         last_activity = CURRENT_TIMESTAMP,
                         updated_at = CURRENT_TIMESTAMP
                 """, (session_id, user_id, app_name, json.dumps(initial_state), json.dumps(metadata)))
@@ -172,14 +180,14 @@ class DatabaseSessionService(BaseSessionService):
                 
                 result = cur.fetchone()
                 if result:
+                    # Return data in ADK expected format with camelCase field names
                     return {
+                        "id": session_id,
+                        "appName": app_name,
+                        "userId": user_id,
                         "state": result[0] or {},
                         "metadata": result[1] or {},
-                        "events": result[2] or [],
-                        "conversation_count": result[3],
-                        "total_events": result[4],
-                        "created_at": result[5],
-                        "updated_at": result[6]
+                        # Note: ADK expects only these core fields, exclude extra database fields
                     }
                 return None
                 
