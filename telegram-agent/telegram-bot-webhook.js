@@ -6,6 +6,9 @@
  * NOT polling - Telegram pushes messages directly to us
  */
 
+// Load environment variables from .env file
+require("dotenv").config({ path: "/opt/tennis-scraper/telegram-agent/.env" });
+
 const TelegramBot = require("node-telegram-bot-api");
 const { Anthropic } = require("@anthropic-ai/sdk");
 const express = require("express");
@@ -182,7 +185,7 @@ async function processMessage(userId, userMessage) {
     ];
 
     let response = await client.messages.create({
-      model: "claude-3-5-sonnet-20241022",
+      model: "claude-sonnet-4-20250514",
       max_tokens: 2048,
       system: `You are a helpful tennis prediction assistant that helps users query predictions and analyze matchups.
 You have access to a database of tennis predictions and can use AI analysis tools.
@@ -191,6 +194,11 @@ When showing data, present it clearly and concisely.`,
       tools: TOOLS,
       messages: messages,
     });
+
+    console.log(`[Claude Response] Stop Reason: ${response.stop_reason}`);
+    if (response.stop_reason === "tool_use") {
+      console.log(`[Claude] Selected tool: ${response.content.find((b) => b.type === "tool_use")?.name}`);
+    }
 
     // Handle tool use in agentic loop
     while (response.stop_reason === "tool_use") {
@@ -227,7 +235,7 @@ When showing data, present it clearly and concisely.`,
 
       // Continue conversation
       response = await client.messages.create({
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-4-20250514",
         max_tokens: 2048,
         system: `You are a helpful tennis prediction assistant that helps users query predictions and analyze matchups.
 You have access to a database of tennis predictions and can use AI analysis tools.
@@ -313,8 +321,8 @@ async function executeTool(toolName, toolInput) {
           predictions = predictions.filter((p) => {
             const predictedOdds =
               p.predicted_winner === p.player1
-                ? p.odds_player1
-                : p.odds_player2;
+                ? parseFloat(p.odds_player1)
+                : parseFloat(p.odds_player2);
             return predictedOdds >= toolInput.min_odds;
           });
         }
@@ -322,8 +330,8 @@ async function executeTool(toolName, toolInput) {
         const formatted = predictions.map((p) => {
           const predictedOdds =
             p.predicted_winner === p.player1
-              ? p.odds_player1
-              : p.odds_player2;
+              ? parseFloat(p.odds_player1)
+              : parseFloat(p.odds_player2);
           return {
             id: p.prediction_id,
             matchup: `${p.player1} vs ${p.player2}`,
@@ -367,7 +375,7 @@ async function executeTool(toolName, toolInput) {
           const response = await axios.post(
             "https://api.perplexity.ai/chat/completions",
             {
-              model: "pplx-70b-online",
+              model: "sonar",
               messages: [
                 {
                   role: "user",
@@ -432,8 +440,8 @@ async function executeTool(toolName, toolInput) {
         result.rows.forEach((p, idx) => {
           const predictedOdds =
             p.predicted_winner === p.player1
-              ? p.odds_player1
-              : p.odds_player2;
+              ? parseFloat(p.odds_player1)
+              : parseFloat(p.odds_player2);
           output += `${idx + 1}. *${p.player1} vs ${p.player2}*\n`;
           output += `   ${p.tournament}\n`;
           output += `   ${p.predicted_winner} @ ${predictedOdds.toFixed(2)} (${p.confidence_score}% confidence)\n\n`;

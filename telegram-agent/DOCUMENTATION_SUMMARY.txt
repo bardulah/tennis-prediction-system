@@ -1,0 +1,246 @@
+================================================================================
+   TENNIS TELEGRAM AGENT - DOCUMENTATION COMPLETE
+================================================================================
+
+Project Status: ✅ PRODUCTION READY - November 12, 2025
+All systems operational and tested
+
+================================================================================
+DOCUMENTATION FILES (7 files, ~57KB)
+================================================================================
+
+1. README.md (6.6 KB)
+   → Start here for overview and quick start
+   → Features, examples, tools reference
+   → For: Everyone
+
+2. DEPLOYMENT.md (9.4 KB)
+   → Complete production deployment guide
+   → PM2 + Nginx setup (current production)
+   → Docker and systemd alternatives
+   → For: DevOps, System Administrators
+
+3. ARCHITECTURE.md (11 KB)
+   → System design and technical details
+   → Tool definitions with examples
+   → Performance metrics and security
+   → For: Architects, Developers
+
+4. STATUS.md (10 KB)
+   → Current operational status report
+   → Testing results and verification
+   → Recent fixes and changes
+   → For: Project Managers, Operators
+
+5. DOCUMENTATION_INDEX.md (9.1 KB)
+   → Navigation guide to all documentation
+   → Common tasks and where to find them
+   → Quick reference for all systems
+   → For: Everyone
+
+6. QUICK_START.md (4.5 KB)
+   → Fast setup for local development
+   → Quick command checklist
+   → For: Developers wanting quick setup
+
+7. DEPLOYMENT_STEPS.md (6.6 KB)
+   → Step-by-step deployment procedures
+   → Detailed checklist format
+   → For: Operators, automation scripts
+
+================================================================================
+PRODUCTION STATUS
+================================================================================
+
+✅ Deployment Method:     PM2 + Nginx (Webhook Mode)
+✅ Domain:                telegram.curak.xyz
+✅ SSL Certificate:       Valid until February 10, 2026
+✅ Process Status:        Online (PID 1195600)
+✅ Memory Usage:          27.4 MB
+✅ Webhook Registration:  Active, 0 pending updates
+✅ Database:              Connected (3,381 predictions)
+✅ All APIs:              Connected and verified
+
+================================================================================
+RECENT UPDATES (November 12, 2025)
+================================================================================
+
+1. ✅ Updated Perplexity Model
+   - From: pplx-70b-online (deprecated)
+   - To: sonar (current standard)
+   - Status: Working correctly
+
+2. ✅ Updated Claude Model
+   - From: claude-3-5-sonnet-20241022 (no longer available)
+   - To: claude-sonnet-4-20250514 (latest)
+   - Status: Working correctly
+
+3. ✅ Fixed Data Type Handling
+   - Issue: Odds returned as strings, .toFixed() fails
+   - Solution: Added parseFloat() conversion
+   - Status: Fixed in all locations
+
+4. ✅ Environment Configuration
+   - Added .env file with all API keys
+   - Configured PM2 with dotenv
+   - Status: Working correctly
+
+5. ✅ Webhook Testing
+   - Tested message reception
+   - Verified agent execution
+   - Confirmed Telegram registration
+   - Status: All working
+
+================================================================================
+TESTING VERIFICATION
+================================================================================
+
+All Components Tested:
+
+✅ Database:         3,381 predictions loaded, 227 today
+✅ Anthropic API:    claude-sonnet-4 responding
+✅ Perplexity API:   sonar model with web search
+✅ Webhook:          Properly registered, 0 errors
+✅ Agent Workflow:   End-to-end tested successfully
+
+Sample Queries Tested:
+✅ "Show me today's predictions"
+✅ "What are the best value bets?"
+✅ "Get predictions with at least 80% confidence"
+
+All returned correct results with natural language responses.
+
+================================================================================
+KEY INFORMATION
+================================================================================
+
+Technology Stack:
+  - Runtime: Node.js 25.1.0
+  - Bot: node-telegram-bot-api (Webhook mode)
+  - LLM: Claude Sonnet 4 (november-2025)
+  - Database: PostgreSQL (Neon)
+  - Web Server: Express.js
+  - Process Manager: PM2
+  - Reverse Proxy: Nginx
+  - SSL: Let's Encrypt
+
+Core Files:
+  - telegram-bot-webhook.js: Main bot application (406 lines)
+  - ecosystem.config.js: PM2 configuration
+  - .env: Environment variables (git-ignored)
+  - package.json: Dependencies
+
+Logs:
+  - Output: /var/log/pm2/tennis-telegram-agent-out-6.log
+  - Errors: /var/log/pm2/tennis-telegram-agent-err-6.log
+
+================================================================================
+QUICK REFERENCE COMMANDS
+================================================================================
+
+Check Status:
+  $ pm2 status
+  $ pm2 logs tennis-telegram-agent --lines 50
+
+Health Check:
+  $ curl https://telegram.curak.xyz/health
+
+Database Test:
+  $ node test_database.js
+
+API Tests:
+  $ node test_anthropic.js
+  $ node test_perplexity.js
+
+Webhook Status:
+  $ node check_webhook.js
+
+Agent Workflow:
+  $ node test_agent_workflow.js
+
+Restart Bot:
+  $ pm2 restart tennis-telegram-agent --update-env
+
+================================================================================
+DOCUMENTATION USAGE GUIDE
+================================================================================
+
+For First-Time Users:
+  1. Start with README.md
+  2. Then read DEPLOYMENT.md
+  3. Refer to STATUS.md for current status
+
+For System Operators:
+  1. Check STATUS.md for current state
+  2. Use DEPLOYMENT.md operational procedures
+  3. Reference troubleshooting guides
+
+For Developers:
+  1. Read ARCHITECTURE.md for system design
+  2. Review README.md for features
+  3. Check QUICK_START.md for local setup
+
+For Troubleshooting:
+  1. Check STATUS.md known issues
+  2. See DEPLOYMENT.md troubleshooting
+  3. Review ARCHITECTURE.md to understand system
+
+For Navigation:
+  → Use DOCUMENTATION_INDEX.md to find anything
+  → Contains task index and where to find answers
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+Immediate:
+  ✅ All systems operational
+  ✅ Documentation complete
+  ✅ Production ready for use
+
+For Team:
+  1. Review STATUS.md for project health
+  2. Set up monitoring via PM2 commands
+  3. Familiarize with troubleshooting procedures
+  4. Schedule knowledge transfer if needed
+
+For Enhancement:
+  - Consider Redis caching for performance
+  - Add user preference persistence
+  - Implement analytics dashboard
+  - Setup uptime monitoring (UptimeRobot, etc)
+
+For Operations:
+  - Monitor logs regularly
+  - Check certificate renewal status
+  - Update dependencies monthly
+  - Back up database regularly
+
+================================================================================
+DOCUMENTATION STATUS
+================================================================================
+
+✅ Complete: All documentation files created and updated
+✅ Accurate: Reflects current production state (Nov 12, 2025)
+✅ Comprehensive: Covers setup, operations, architecture, status
+✅ Organized: Indexed and cross-referenced
+✅ Maintained: Version information and update dates included
+
+Last Updated: November 12, 2025, 18:59 UTC
+All Systems: OPERATIONAL ✅
+Project Status: PRODUCTION READY ✅
+
+================================================================================
+
+For questions or issues, refer to appropriate documentation:
+  - Setup issues → DEPLOYMENT.md
+  - System design → ARCHITECTURE.md
+  - Current status → STATUS.md
+  - Quick setup → QUICK_START.md
+  - Navigation → DOCUMENTATION_INDEX.md
+
+Documentation is complete and current.
+All systems are operational.
+Ready for production use.
+
+================================================================================

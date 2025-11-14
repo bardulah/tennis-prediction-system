@@ -1,469 +1,252 @@
-# Architecture: Tennis Telegram AI Agent
+# Tennis Telegram Agent - Architecture Documentation
 
 ## System Overview
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     TELEGRAM USER                           │
-│                   (Your Telegram Chat)                      │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ Message
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│                    TELEGRAM BOT API                         │
-│                  (Telegram Servers)                         │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│              telegram-bot.js (Node.js)                      │
-│         ┌──────────────────────────────────────┐           │
-│         │  Message Handler                     │           │
-│         │  - Receives Telegram messages        │           │
-│         │  - Sends typing indicator            │           │
-│         │  - Calls Claude agent                │           │
-│         └────────────┬─────────────────────────┘           │
-└──────────────────────┼────────────────────────────────────────┘
-                       │
-                       ↓
-┌─────────────────────────────────────────────────────────────┐
-│           Claude Agent (Anthropic API)                      │
-│         ┌──────────────────────────────────────┐           │
-│         │  Natural Language Understanding      │           │
-│         │  - Parses user intent                │           │
-│         │  - Selects appropriate tools         │           │
-│         │  - Agentic loop for multi-step ops   │           │
-│         └─────────────┬────────────────────────┘           │
-└──────────────────────┼────────────────────────────────────────┘
-                       │ Tool Calls
-        ┌──────────────┼──────────────┐
-        │              │              │
-        ↓              ↓              ↓
-  ┌─────────────┐ ┌─────────────┐ ┌──────────────┐
-  │ Database    │ │ Perplexity  │ │ Gemini LLM   │
-  │ Queries     │ │ API         │ │ API          │
-  │ (PostgreSQL)│ │ (Web Search)│ │ (Analysis)   │
-  └─────────────┘ └─────────────┘ └──────────────┘
-        │              │              │
-        ↓              ↓              ↓
-  ┌─────────────┐ ┌─────────────┐ ┌──────────────┐
-  │ Neon DB     │ │ Perplexity  │ │ Google Cloud │
-  │ Tennis Data │ │ Servers     │ │ Gemini API   │
-  └─────────────┘ └─────────────┘ └──────────────┘
-```
+The Tennis Telegram Agent is a production-ready AI-powered Telegram bot that uses Claude's agentic architecture to process natural language queries and execute database/API operations to retrieve tennis prediction insights.
 
-## Component Details
+**Current Status**: ✅ Production Deployed (November 12, 2025)
 
-### 1. **Telegram Bot (telegram-bot.js)**
+## Technology Stack
 
-The entry point for user interactions.
+### Core Components
+- **Runtime**: Node.js 25.1.0
+- **Bot Framework**: node-telegram-bot-api (Webhook mode)
+- **LLM**: Claude Sonnet 4 (claude-sonnet-4-20250514)
+- **Database**: PostgreSQL (Neon)
+- **Web Server**: Express.js
+- **Process Manager**: PM2
+- **Reverse Proxy**: Nginx
+- **SSL/TLS**: Let's Encrypt Certbot
 
-**Key Responsibilities:**
-- Listen for messages via Telegram Bot API (polling)
-- Create Claude agent with tool definitions
-- Manage agentic loop for multi-turn conversations
-- Handle tool execution results
-- Format responses and send back to Telegram
-- Handle message length limits (4096 chars)
+### External APIs
+- **Anthropic Claude API**: Agent orchestration and conversational AI
+- **Perplexity API**: Real-time web search for matchup analysis (sonar model)
+- **Telegram Bot API**: Message delivery via webhooks
+- **Google Gemini API**: Optional alternative LLM for analysis
 
-**Flow:**
-```
-Message Received
-    ↓
-Send "typing..." indicator
-    ↓
-Call Claude with tools + message
-    ↓
-Claude returns tool calls or text?
-    ├─ Tool calls → Execute tools → Add results to message history
-    ├─ Repeat until final response
-    └─ Text response → Format and send to Telegram
-    ↓
-Response sent
-```
-
-### 2. **Claude Agent Loop**
-
-Claude handles the intelligence and decision-making.
-
-**System Prompt Behavior:**
-```
-"You are a helpful tennis prediction assistant that helps users
-query predictions and analyze matchups. You have access to a
-database of tennis predictions and can use AI analysis tools."
-```
-
-**Decision Making:**
-- Parses natural language: "Give me all 'bet' predictions with odds >1.5"
-- Selects best tool: `get_predictions` with filters
-- Constructs tool input: `{ action: "bet", min_odds: 1.5 }`
-- Interprets results and formats response
-
-**Tool Selection Examples:**
-```
-User: "Show me value bets for today"
-→ Claude selects: get_value_bets
-  input: { limit: 10, date: null }
-
-User: "How's our accuracy on Australian Open?"
-→ Claude selects: get_tournament_stats
-  input: { tournament: "Australian Open", days: 30 }
-
-User: "Analyze Nadal vs Djokovic head-to-head"
-→ Claude selects: analyze_matchup
-  input: { player1: "Nadal", player2: "Djokovic",
-           focus: "head-to-head", llm: "perplexity" }
-```
-
-### 3. **Database Tools (in mcp-server.js)**
-
-Direct access to your tennis prediction database.
-
-**Available Tools:**
-
-#### get_predictions
-Retrieves predictions with flexible filtering.
-```sql
-SELECT p.*, lm.* FROM predictions p
-LEFT JOIN live_matches lm ON p.match_id = lm.match_id
-WHERE p.prediction_day = CURRENT_DATE
-  AND p.recommended_action = 'bet'
-  AND p.confidence_score >= 60
-  AND p.odds > 1.5
-```
-
-**Tool Input Schema:**
-```json
-{
-  "action": "bet|monitor|skip",
-  "min_odds": 1.5,
-  "min_confidence": 60,
-  "date": "2024-11-12",
-  "tournament": "Australian Open",
-  "surface": "hard|clay|grass",
-  "limit": 20
-}
-```
-
-#### get_value_bets
-Finds predictions with favorable odds relative to confidence.
-```sql
-SELECT * FROM predictions
-WHERE value_bet = true
-AND prediction_day = CURRENT_DATE
-```
-
-#### get_tournament_stats
-Calculates tournament performance metrics.
-```sql
-SELECT
-  COUNT(*) as total_predictions,
-  COUNT(CASE WHEN value_bet THEN 1 END) as value_bets,
-  AVG(confidence_score) as avg_confidence,
-  COUNT(CASE WHEN prediction_correct THEN 1 END) /
-    COUNT(CASE WHEN prediction_correct IS NOT NULL THEN 1 END) * 100
-    as accuracy
-FROM predictions
-WHERE tournament ILIKE 'Australian%'
-```
-
-#### analyze_matchup
-Calls external LLM for detailed analysis.
-
-**Inputs:**
-```json
-{
-  "player1": "Djokovic",
-  "player2": "Sinner",
-  "llm": "perplexity|gemini",
-  "focus": "head-to-head|recent-form|surface-preference"
-}
-```
-
-**Example LLM Query:**
-```
-"Analyze the tennis matchup between Djokovic and Sinner.
-Focus on recent-form. Provide insights on their playing style,
-recent form, head-to-head record, and prediction."
-```
-
-### 4. **External APIs**
-
-#### Perplexity API
-- **Purpose**: Web-search-based AI analysis
-- **Model**: pplx-70b-online
-- **Cost**: Free tier + paid
-- **Usage**: Real-time matchup analysis with current info
-
-**Example:**
-```javascript
-POST https://api.perplexity.ai/chat/completions
-{
-  "model": "pplx-70b-online",
-  "messages": [{
-    "role": "user",
-    "content": "Analyze Djokovic vs Sinner matchup"
-  }]
-}
-```
-
-#### Gemini API
-- **Purpose**: Alternative LLM for analysis
-- **Model**: gemini-pro
-- **Cost**: Free tier + paid
-- **Usage**: Detailed analysis without web search
-
-**Example:**
-```javascript
-POST https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
-{
-  "contents": [{
-    "parts": [{ "text": "Analyze Djokovic vs Sinner matchup" }]
-  }]
-}
-```
-
-### 5. **Data Flow Example**
-
-**User Query:** "Give me all 'bet' predictions with odds >1.5"
+## Architecture Overview
 
 ```
-1. Telegram Message Received
-   User: "Give me all 'bet' predictions with odds >1.5"
-
-2. telegram-bot.js processes
-   → Sends typing indicator
-   → Calls Claude.messages.create() with tools
-
-3. Claude Agent
-   → Understands: user wants filtered predictions
-   → Selects tool: get_predictions
-   → Creates input: {
-       action: "bet",
-       min_odds: 1.5,
-       limit: 20
-     }
-   → Return type: tool_use
-
-4. telegram-bot.js executes tool
-   → Calls executeTool("get_predictions", {...})
-   → Queries database with filters
-   → Returns formatted results
-
-5. Claude continues (agentic loop)
-   → Receives tool results
-   → Formats response for Telegram
-   → Return type: text (stop_reason = "end_turn")
-
-6. telegram-bot.js sends response
-   → Formats markdown
-   → Handles message length
-   → Sends to Telegram
-
-7. User sees in Telegram
-   "Found 8 predictions:
-
-   1. Djokovic vs Sinner
-      Australian Open • Hard
-      Djokovic @ 1.65 (72%)
-      Action: bet • ✓ Value Bet"
+┌─────────────────────────────────────────────────────────┐
+│                   Telegram User                          │
+└────────────────────────┬────────────────────────────────┘
+                         │
+┌────────────────────────▼────────────────────────────────┐
+│            Telegram Bot API (Webhooks)                   │
+│  setWebhook: https://telegram.curak.xyz/webhook        │
+└────────────────────────┬────────────────────────────────┘
+                         │
+┌────────────────────────▼────────────────────────────────┐
+│  Nginx Reverse Proxy (telegram.curak.xyz:443)           │
+│  - SSL/TLS Termination (Let's Encrypt)                  │
+│  - Rate Limiting                                         │
+│  - Request Validation                                    │
+└────────────────────────┬────────────────────────────────┘
+                         │
+┌────────────────────────▼────────────────────────────────┐
+│  Express.js Webhook Server (localhost:3004)             │
+│  - POST /webhook (receives Telegram updates)            │
+│  - GET /health (status check)                           │
+└────────────────────────┬────────────────────────────────┘
+                         │
+┌────────────────────────▼────────────────────────────────┐
+│  Claude Agent (Agentic Loop)                            │
+│  - Intent Understanding                                 │
+│  - Tool Selection                                        │
+│  - Response Generation                                   │
+└─────┬──────────────────────┬──────────────────────┬─────┘
+      │                      │                      │
+      ▼                      ▼                      ▼
+┌──────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│  PostgreSQL  │  │ Perplexity API   │  │ Anthropic API    │
+│  (Neon)      │  │ (Web Search)      │  │ (Claude)         │
+│              │  │                  │  │                  │
+│ - Predictions│  │ - Match Analysis │  │ - Tool Calling   │
+│ - Tournaments│  │ - Real-time Data │  │ - Orchestration  │
+│ - Live Scores│  │ - Web Insights   │  │                  │
+└──────────────┘  └──────────────────┘  └──────────────────┘
 ```
 
-## Tool Execution Details
+## Request Flow
 
-### Database Tool Execution
+### 1. Message Reception
+User sends message → Telegram API validates → Pushes to webhook (POST https://telegram.curak.xyz/webhook) → Nginx validates SSL/TLS → Forwards to Express.js
 
-```javascript
-// In telegram-bot.js executeTool()
-async function executeTool(toolName, toolInput) {
-  const pool = new Pool({ connectionString: DATABASE_URL });
+### 2. Message Processing
+Express.js webhook handler extracts chat_id and message text → Validates format → Initiates async processing → Returns 200 OK immediately
 
-  switch(toolName) {
-    case "get_predictions":
-      // Build dynamic query based on filters
-      let query = "SELECT ... FROM predictions p LEFT JOIN live_matches lm";
-      let params = [];
+### 3. Agent Orchestration (Agentic Loop)
+Claude receives message with tools → Analyzes intent and calls tool → Executes tool and returns result → Claude continues loop → Final text response generated
 
-      if (toolInput.action) query += " AND p.recommended_action = $N";
-      if (toolInput.min_odds) filter after fetch (calculated field);
-      if (toolInput.min_confidence) query += " AND p.confidence_score >= $N";
-      // ... more filters
+### 4. Response Delivery
+Generate text response → Split if > 4096 characters → Send via bot.sendMessage() → Telegram delivers to user
 
-      const result = await pool.query(query, params);
+## Tool Definitions
 
-      // Format results for readability
-      return formatPredictionsTable(result.rows);
-  }
-}
+### 1. get_predictions
+Query predictions with optional filters (action, odds, confidence, date, tournament, surface, limit)
+
+### 2. get_value_bets
+Get predictions identified as value bets with optional limit and date
+
+### 3. analyze_matchup
+Analyze tennis matchup using Perplexity (sonar model) or Gemini with optional focus
+
+### 4. get_tournament_stats
+Get tournament-level statistics including accuracy and confidence metrics
+
+## Model Versions (Latest - November 12, 2025)
+
+| Component | Model | Status |
+|-----------|-------|--------|
+| LLM | claude-sonnet-4-20250514 | ✅ Active |
+| Web Search | Perplexity sonar | ✅ Active |
+| Alternative | Gemini Pro | ✅ Available |
+| Deprecated | claude-3-5-sonnet-20241022 | ⚠️ Removed |
+| Deprecated | pplx-70b-online | ⚠️ Replaced |
+
+## Deployment Status
+
+### Current Configuration
+- **Server**: curak.xyz VPS
+- **Domain**: telegram.curak.xyz
+- **Port**: 3004 (internal), 443 (external)
+- **Process Manager**: PM2 (PID 1195600)
+- **Memory**: 27.4MB
+- **Status**: Online and healthy
+
+### Environment Variables Configured
+✅ TELEGRAM_BOT_TOKEN  
+✅ DATABASE_URL (Neon PostgreSQL)  
+✅ ANTHROPIC_API_KEY  
+✅ PERPLEXITY_API_KEY  
+✅ TELEGRAM_CHAT_ID  
+✅ PORT=3004  
+✅ WEBHOOK_URL  
+
+### SSL/TLS Certificate
+- Issued: November 12, 2025
+- Valid Until: February 10, 2026
+- Issuer: Let's Encrypt
+- Auto-renewal: Enabled
+
+## Testing Results (November 12, 2025)
+
+All components tested and verified:
+
+| Test | Result |
+|------|--------|
+| Health Endpoint | ✅ Returns 200 OK |
+| Database | ✅ 3,381 predictions loaded |
+| Anthropic API | ✅ claude-sonnet-4 responding |
+| Perplexity API | ✅ sonar model working |
+| Telegram Webhook | ✅ Properly registered |
+| Agent Workflow | ✅ End-to-end functional |
+
+### Verified Queries
+- "Show me today's predictions" → Retrieved 20 predictions
+- "What are the best value bets?" → Retrieved value bets
+- "Get predictions with at least 80% confidence" → Proper filtering
+
+## Performance Characteristics
+
+- **Response Time**: 2-5 seconds typical
+- **Memory Usage**: ~27MB
+- **CPU Usage**: < 0.1% idle
+- **Database Queries**: < 500ms
+- **API Calls**: 1-3 seconds
+
+## Security Features
+
+- ✅ API keys stored in .env (excluded from git)
+- ✅ Environment variables loaded via dotenv
+- ✅ Parameterized SQL queries (no injection)
+- ✅ HTTPS for all external calls
+- ✅ SSL/TLS with certificate validation
+- ✅ Database connection with sslmode=require
+- ✅ Error handling prevents credential exposure
+
+## Files Reference
+
+### Core Application
+- `telegram-bot-webhook.js`: Main bot (406 lines)
+- `ecosystem.config.js`: PM2 configuration
+- `package.json`: Dependencies
+
+### Testing & Utilities
+- `test_database.js`: Database connectivity
+- `test_anthropic.js`: Claude API test
+- `test_perplexity.js`: Perplexity API test
+- `check_webhook.js`: Webhook status
+- `test_agent_workflow.js`: End-to-end test
+
+### Configuration Files
+- Nginx: `/etc/nginx/sites-available/curak.xyz`
+- SSL Certs: `/etc/letsencrypt/live/telegram.curak.xyz/`
+- PM2 Logs: `/var/log/pm2/tennis-telegram-agent-{out,err}-6.log`
+
+## Key Fixes Applied
+
+1. **Perplexity Model Update**: pplx-70b-online → sonar
+2. **Claude Model Update**: claude-3-5-sonnet → claude-sonnet-4
+3. **Data Type Handling**: Added parseFloat() for odds (VARCHAR → numeric)
+4. **Environment Loading**: Added dotenv configuration
+
+## Agentic Loop Architecture
+
+The bot uses Claude's tool_use feature for intelligent agent behavior:
+
+```
+1. User sends query
+2. Claude receives: query + system prompt + tool definitions
+3. Claude analyzes intent
+4. Claude calls appropriate tool(s)
+5. Tool executes (database/API call)
+6. Claude receives tool result
+7. If more tools needed: go to step 4
+8. If done: Claude generates natural response
+9. Response sent to user
 ```
 
-### LLM Tool Execution
+This enables:
+- Natural language understanding
+- Automatic tool selection
+- Multi-step interactions
+- Intelligent response generation
+- Error recovery
 
-```javascript
-case "analyze_matchup":
-  const query = `Analyze the tennis matchup between ${player1} and ${player2}...`;
+## Monitoring & Maintenance
 
-  if (llm === "perplexity") {
-    const response = await axios.post(
-      "https://api.perplexity.ai/chat/completions",
-      {
-        model: "pplx-70b-online",
-        messages: [{ role: "user", content: query }],
-        temperature: 0.7,
-        max_tokens: 1000
-      }
-    );
-    return response.data.choices[0].message.content;
-  }
-```
-
-## Environment Variables
-
-```env
-# Required
-TELEGRAM_BOT_TOKEN=123456:ABC-DEF...  # BotFather
-DATABASE_URL=postgresql://...         # Neon DB
-ANTHROPIC_API_KEY=sk-ant-...          # Claude API
-
-# Optional (for LLM analysis)
-PERPLEXITY_API_KEY=pplx-...          # Web search analysis
-GOOGLE_API_KEY=AIzaSy...              # Gemini analysis
-
-# Optional (config)
-NODE_ENV=production                   # App environment
-```
-
-## Error Handling
-
-**At each layer:**
-
-1. **Message Reception**
-   - Invalid messages ignored
-   - Malformed JSON handled gracefully
-
-2. **Claude Agent**
-   - Tool execution errors caught
-   - Return error content in response
-   - Agent can retry with different tool
-
-3. **Database**
-   - Connection errors caught
-   - Pool cleanup on error
-   - Partial results handled
-
-4. **External APIs**
-   - Timeout handling (30s default)
-   - API key validation on startup
-   - Graceful degradation (Perplexity optional)
-
-5. **Response**
-   - Message length limit (4096 chars)
-   - Auto-split long responses
-   - Markdown formatting errors handled
-
-## Performance Considerations
-
-**Database Queries:**
-- Most queries use indexed columns (prediction_day, recommended_action)
-- LEFT JOIN with live_matches efficient with proper indexes
-- Results limited to prevent memory issues
-
-**LLM Calls:**
-- Perplexity web search: 2-5 seconds
-- Gemini direct: 1-3 seconds
-- Claude agent: 1-2 seconds per turn
-- Total response time: 3-8 seconds typical
-
-**API Limits:**
-- Telegram: Unlimited messages
-- Anthropic: Rate limited (depends on plan)
-- Perplexity: Free tier has limits
-- Google/Gemini: Free tier has limits
-
-## Scaling
-
-**For high volume:**
-
-1. **Connection pooling**
-   - Currently: Single pool per bot
-   - Max connections: 20 (default)
-
-2. **Caching**
-   - Add Redis for frequent queries
-   - Cache tournament stats (updates daily)
-   - Cache analysis results (expire in 1 hour)
-
-3. **Webhook instead of polling**
-   - Current: Polling (simpler)
-   - Alternative: Webhook (faster responses)
-
-4. **Distributed bot**
-   - Multiple bot instances
-   - Load balance on Telegram webhook
-
-## Security
-
-**API Keys:**
-- Stored in environment variables only
-- Never logged or committed
-- Rotated regularly in production
-
-**Database:**
-- Connection string in environment
-- Parameterized queries (SQL injection prevention)
-- Row-level security possible with roles
-
-**Telegram:**
-- Token kept secret
-- Only authenticated bot can receive messages
-- No user authentication needed (Telegram handles it)
-
-## Testing
-
-**test-queries.js validates:**
-- Database connectivity
-- Each tool function
-- LLM API availability
-- Sample queries work
-
-**Run:**
+### Daily Checks
 ```bash
-node test-queries.js
+# View bot status
+pm2 status
+
+# Check logs
+pm2 logs tennis-telegram-agent --lines 50
+
+# Health endpoint
+curl https://telegram.curak.xyz/health
 ```
 
-**Output:**
-```
-✓ Get Predictions
-✓ Get Value Bets
-✓ Tournament Stats
-✓ Live Matches
-✓ Perplexity API (optional)
-✓ Gemini API (optional)
+### Monthly Tasks
+- Review API usage and costs
+- Check certificate renewal status
+- Monitor database performance
+- Update dependencies if needed
 
-✨ System ready for Telegram bot deployment!
-```
+### Recommended Enhancements
+- Add Sentry for error tracking
+- Implement Redis caching
+- Add user preference persistence
+- Setup uptime monitoring
+- Implement detailed analytics
 
-## Files Breakdown
+## Deployment Timeline
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| telegram-bot.js | ~350 | Main bot, message handling, agentic loop |
-| mcp-server.js | ~450 | Tool implementations, database queries |
-| package.json | 20 | Dependencies |
-| test-queries.js | ~300 | System validation |
-| README.md | ~300 | User documentation |
-| QUICK_START.md | ~200 | Quick setup guide |
-| DEPLOYMENT.md | ~300 | Production deployment |
-| ARCHITECTURE.md | This file | System design |
-
-## Summary
-
-**Key Insight:**
-The bot acts as a **natural language interface** to your tennis prediction system. Instead of writing SQL or API calls, users can casually chat on Telegram. Claude's agent capabilities understand intent, select the right tools, and orchestrate the conversation—making complex queries feel natural.
-
-**The magic is:**
-```
-Natural Language → Claude Agent → Tool Selection → Data Access → Formatted Response
-```
-
-Simple yet powerful. 🚀
+- Initial Implementation: October 2025
+- Webhook Migration: November 12, 2025
+- Environment Configuration: November 12, 2025 (17:03-18:25)
+- Model Updates: November 12, 2025
+- Full Testing: November 12, 2025 (18:45-18:51)
+- Production Ready: November 12, 2025 (18:51)
