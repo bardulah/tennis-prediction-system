@@ -394,36 +394,7 @@ console.log(`========================================\n`);
     allMatches = await extractMatches(pageDate);
     console.log(`Found ${allMatches.length} matches for ${pageDate}`);
 
-  } else if (mode === '--single-day') {
-    console.log(`Mode: Single day (${DAYS_BACK} days back)`);
 
-    // Navigate back N days
-    for (let day = 0; day < DAYS_BACK; day++) {
-      console.log(`Going back to day ${day + 1}/${DAYS_BACK}...`);
-      const clicked = await page.evaluate(() => {
-        const prevButton = document.querySelector('button[data-day-picker-arrow="prev"]');
-        if (prevButton) {
-          prevButton.click();
-          return true;
-        }
-        return false;
-      });
-
-      if (!clicked) {
-        console.log(`Could not click previous day button at day ${day + 1}`);
-        break;
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 4000));
-    }
-
-    // Extract date and matches
-    const dateText = await extractDateFromPage();
-    const pageDate = parseDateFromFlashscore(dateText);
-    console.log(`Extracted date from page: "${dateText}" → ${pageDate}`);
-
-    allMatches = await extractMatches(pageDate);
-    console.log(`Found ${allMatches.length} matches for ${pageDate}`);
 
   } else if (mode === '--single-day') {
     const targetDate = new Date(today);

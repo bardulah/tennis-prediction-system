@@ -622,11 +622,13 @@ def run_morning_workflow(
         
         # Determine output file based on mode
         if days_forward > 0 and days_forward <= 7:
-            output_file = f"matches-{datetime.now().strftime('%Y-%m-%d')}-forward-{days_forward}d.json"
+            start_date = datetime.now() + timedelta(days=1)
+            end_date = start_date + timedelta(days=days_forward-1)
+            output_file = f"matches-{start_date.strftime('%Y-%m-%d')}-to-{end_date.strftime('%Y-%m-%d')}-strip-scores.json"
         elif mode == "--today":
             output_file = f"matches-{datetime.now().strftime('%Y-%m-%d')}-strip-scores.json"
         elif mode == "--single-day" and days_back:
-            target_date = datetime.now().replace(day=max(1, datetime.now().day - days_back))
+            target_date = datetime.now() + timedelta(days=-days_back)
             output_file = f"matches-{target_date.strftime('%Y-%m-%d')}-finished.json"
         else:
             output_file = f"matches-{datetime.now().strftime('%Y-%m-%d')}-strip-scores.json"
