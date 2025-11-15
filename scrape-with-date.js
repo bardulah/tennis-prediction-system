@@ -3,13 +3,13 @@ const fs = require('fs');
 
 // Parse command-line arguments
 const args = process.argv.slice(2);
-const mode = args.find(arg => arg === '--today' || arg === '--single-day' || arg === '--days-back') || '--today';
+const mode = args.find(arg => arg === '--today' || arg === '--single-day' || arg === '--days-back' || arg === '--days-forward') || '--today';
 const filterMode = args.find(arg => arg === '--all' || arg === '--pending' || arg === '--finished' || arg === '--strip-scores') || '--all';
 const daysArg = args.find(arg => !arg.startsWith('--'));
-const DAYS_BACK = daysArg ? parseInt(daysArg) : 1;
+const DAYS = daysArg ? parseInt(daysArg) : 1;
 
 // Validate modes
-const VALID_MODES = ['--today', '--single-day', '--days-back'];
+const VALID_MODES = ['--today', '--single-day', '--days-back', '--days-forward'];
 const VALID_FILTER_MODES = ['--all', '--pending', '--finished', '--strip-scores'];
 
 if (!VALID_MODES.includes(mode)) {
@@ -20,7 +20,9 @@ if (!VALID_MODES.includes(mode)) {
   console.error('  node scrape-with-date.js --today --pending          # Today\'s pending matches');
   console.error('  node scrape-with-date.js --single-day 7             # Single day 7 days ago');
   console.error('  node scrape-with-date.js --days-back 7              # All matches from last 7 days');
-  console.error('  node scrape-with-date.js --days-back 7 --finished   # Last 7 days, finished only\n');
+  console.error('  node scrape-with-date.js --days-back 7 --finished   # Last 7 days, finished only');
+  console.error('  node scrape-with-date.js --days-forward 3           # All matches from next 3 days');
+  console.error('  node scrape-with-date.js --single-day 1 --days-forward  # Tomorrow\'s matches\n');
   process.exit(1);
 }
 
@@ -131,19 +133,26 @@ if (mode === '--today') {
   OUTPUT_FILE = `matches-${formatDate(today)}-${filterModeName}.json`;
 } else if (mode === '--single-day') {
   const targetDate = new Date(today);
-  targetDate.setDate(today.getDate() - DAYS_BACK);
+  targetDate.setDate(today.getDate() - DAYS);
   OUTPUT_FILE = `matches-${formatDate(targetDate)}-${filterModeName}.json`;
-} else {
+} else if (mode === '--days-back') {
   const endDate = new Date(today);
   endDate.setDate(today.getDate() - 1);
   const startDate = new Date(today);
-  startDate.setDate(today.getDate() - DAYS_BACK);
+  startDate.setDate(today.getDate() - DAYS);
+  OUTPUT_FILE = `matches-${formatDate(startDate)}-to-${formatDate(endDate)}-${filterModeName}.json`;
+} else if (mode === '--days-forward') {
+  const startDate = new Date(today);
+  startDate.setDate(today.getDate() + 1);
+  const endDate = new Date(today);
+  endDate.setDate(today.getDate() + DAYS);
   OUTPUT_FILE = `matches-${formatDate(startDate)}-to-${formatDate(endDate)}-${filterModeName}.json`;
 }
 
 console.log(`\n========================================`);
 console.log(`Flashscore Tennis Scraper with Date Extraction`);
-console.log(`Mode: ${mode}${mode !== '--today' ? ' (' + DAYS_BACK + ' days)' : ''}`);
+const daysDisplay = mode !== '--today' ? ` (${DAYS} days${mode.includes('forward') ? ' forward' : ' back'})` : '';
+console.log(`Mode: ${mode}${daysDisplay}`);
 console.log(`Filter: ${filterMode}`);
 console.log(`Output: ${OUTPUT_FILE}`);
 console.log(`========================================\n`);
@@ -416,11 +425,46 @@ console.log(`========================================\n`);
     allMatches = await extractMatches(pageDate);
     console.log(`Found ${allMatches.length} matches for ${pageDate}`);
 
-  } else if (mode === '--days-back') {
-    console.log(`Mode: Multiple days (${DAYS_BACK} days back)`);
+  } else if (mode === '--single-day') {
+    const targetDate = new Date(today);
+    targetDate.setDate(today.getDate() - DAYS);
+    OUTPUT_FILE = `matches-${formatDate(targetDate)}-${filterModeName}.json`;
+    
+    console.log(`Target date: ${formatDate(targetDate)} (${DAYS} days back)`);
+    
+    // Navigate to the target date
+    for (let day = 1; day <= DAYS; day++) {
+      console.log(`\nNavigating... Day ${day}/${DAYS}`);
+      const clicked = await page.evaluate(() => {
+        const prevButton = document.querySelector('button[data-day-picker-arrow="prev"]');
+        if (prevButton) {
+          prevButton.click();
+          return true;
+        }
+        return false;
+      });
 
-    for (let day = 1; day <= DAYS_BACK; day++) {
-      console.log(`\n[Day ${day}/${DAYS_BACK}] Going back...`);
+      if (!clicked) {
+        console.log(`Could not click previous day button at day ${day}`);
+        break;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 4000));
+    }
+
+    // Extract date and matches
+    const dateText = await extractDateFromPage();
+    const pageDate = parseDateFromFlashscore(dateText);
+    console.log(`Extracted date from page: "${dateText}" → ${pageDate}`);
+
+    allMatches = await extractMatches(pageDate);
+    console.log(`Found ${allMatches.length} matches for ${pageDate}`);
+
+  } else if (mode === '--days-back') {
+    console.log(`Mode: Multiple days (${DAYS} days back)`);
+
+    for (let day = 1; day <= DAYS; day++) {
+      console.log(`\n[Day ${day}/${DAYS}] Going back...`);
       const clicked = await page.evaluate(() => {
         const prevButton = document.querySelector('button[data-day-picker-arrow="prev"]');
         if (prevButton) {
@@ -440,16 +484,84 @@ console.log(`========================================\n`);
       // Extract date for this day
       const dateText = await extractDateFromPage();
       const pageDate = parseDateFromFlashscore(dateText);
-      console.log(`[Day ${day}/${DAYS_BACK}] Extracted date: "${dateText}" → ${pageDate}`);
+      console.log(`[Day ${day}/${DAYS}] Extracted date: "${dateText}" → ${pageDate}`);
 
       // Extract matches for this day
       const dayMatches = await extractMatches(pageDate);
-      console.log(`[Day ${day}/${DAYS_BACK}] Found ${dayMatches.length} matches`);
+      console.log(`[Day ${day}/${DAYS}] Found ${dayMatches.length} matches`);
 
       allMatches = allMatches.concat(dayMatches);
     }
 
-    console.log(`\nTotal matches from all ${DAYS_BACK} days: ${allMatches.length}`);
+    console.log(`\nTotal matches from all ${DAYS} days: ${allMatches.length}`);
+  } else if (mode === '--days-forward') {
+    console.log(`Mode: Multiple days (${DAYS} days forward)`);
+
+    for (let day = 1; day <= DAYS; day++) {
+      console.log(`\n[Day ${day}/${DAYS}] Going forward...`);
+      const clicked = await page.evaluate(() => {
+        const nextButton = document.querySelector('button[data-day-picker-arrow="next"]');
+        if (nextButton) {
+          nextButton.click();
+          return true;
+        }
+        return false;
+      });
+
+      if (!clicked) {
+        console.log(`Could not click next day button at day ${day}`);
+        break;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 4000));
+
+      // Extract date for this day
+      const dateText = await extractDateFromPage();
+      const pageDate = parseDateFromFlashscore(dateText);
+      console.log(`[Day ${day}/${DAYS}] Extracted date: "${dateText}" → ${pageDate}`);
+
+      // Extract matches for this day
+      const dayMatches = await extractMatches(pageDate);
+      console.log(`[Day ${day}/${DAYS}] Found ${dayMatches.length} matches`);
+
+      allMatches = allMatches.concat(dayMatches);
+    }
+
+    console.log(`\nTotal matches from all ${DAYS} days forward: ${allMatches.length}`);
+  } else if (mode === '--single-day-forward') {
+    const targetDate = new Date(today);
+    targetDate.setDate(today.getDate() + DAYS);
+    OUTPUT_FILE = `matches-${formatDate(targetDate)}-${filterModeName}.json`;
+    
+    console.log(`Target date: ${formatDate(targetDate)} (${DAYS} days forward)`);
+    
+    // Navigate forward to the target date
+    for (let day = 1; day <= DAYS; day++) {
+      console.log(`\nNavigating forward... Day ${day}/${DAYS}`);
+      const clicked = await page.evaluate(() => {
+        const nextButton = document.querySelector('button[data-day-picker-arrow="next"]');
+        if (nextButton) {
+          nextButton.click();
+          return true;
+        }
+        return false;
+      });
+
+      if (!clicked) {
+        console.log(`Could not click next day button at day ${day}`);
+        break;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 4000));
+    }
+
+    // Extract date and matches
+    const dateText = await extractDateFromPage();
+    const pageDate = parseDateFromFlashscore(dateText);
+    console.log(`Extracted date from page: "${dateText}" → ${pageDate}`);
+
+    allMatches = await extractMatches(pageDate);
+    console.log(`Found ${allMatches.length} matches for ${pageDate}`);
   }
 
   await browser.close();

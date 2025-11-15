@@ -575,33 +575,30 @@ def run_morning_workflow(
         if not os.path.exists(script_path):
             return f"❌ Scraper script not found at {script_path}"
         
-        # Handle forward scraping limitation
+        # Handle forward scraping with the updated scraper capabilities
         if days_forward > 0:
-            if days_forward == 1:
-                return f"📅 **Tomorrow's Matches**\n\n" \
-                       f"⚠️ **Forward scraping not supported by the underlying scraper.**\n\n" \
-                       f"**Alternative approach:**\n" \
-                       f"• Use `--today` mode to get today's + tomorrow's early posted matches\n" \
-                       f"• Flashscore typically posts tomorrow's schedule by evening\n" \
-                       f"• Run evening workflow to capture completed today's matches\n\n" \
-                       f"**Recommended:**\n" \
-                       f"• Morning: Use `run_morning_workflow()` for current + early tomorrow\n" \
-                       f"• Evening: Use `run_evening_workflow()` for yesterday's results\n" \
-                       f"• Status: Use `get_workflow_status()` to monitor data availability"
+            if days_forward <= 7:  # Reasonable limit for forward scraping
+                mode = "--days-forward"
+                days_arg = days_forward
+                output_file = f"matches-{datetime.now().strftime('%Y-%m-%d')}-forward-{days_forward}d.json"
             else:
                 return f"❌ Forward scraping {days_forward} days not supported. " \
-                       f"Maximum forward look: 1 day (tomorrow) via `--today` mode."
+                       f"Maximum forward look: 7 days ahead. Try `days_forward=1` for tomorrow's matches."
         
         # Build command
         cmd = ["node", script_path]
         
-        # Add mode
-        if mode == "--days-back" and days_back:
+        # Add mode and days argument
+        if days_forward > 0 and days_forward <= 7:
+            cmd.extend(["--days-forward", str(days_forward)])
+            mode = "forward"
+        elif mode == "--days-back" and days_back:
             cmd.extend(["--days-back", str(days_back)])
         elif mode == "--single-day" and days_back:
             cmd.extend(["--single-day", str(days_back)])
         else:
             cmd.append("--today")
+            mode = "today"
         
         # Add filter mode
         cmd.append(filter_mode)
@@ -624,7 +621,9 @@ def run_morning_workflow(
             return f"❌ Scraper failed with return code {result.returncode}\nError: {result.stderr}"
         
         # Determine output file based on mode
-        if mode == "--today":
+        if days_forward > 0 and days_forward <= 7:
+            output_file = f"matches-{datetime.now().strftime('%Y-%m-%d')}-forward-{days_forward}d.json"
+        elif mode == "--today":
             output_file = f"matches-{datetime.now().strftime('%Y-%m-%d')}-strip-scores.json"
         elif mode == "--single-day" and days_back:
             target_date = datetime.now().replace(day=max(1, datetime.now().day - days_back))
@@ -656,7 +655,18 @@ def run_morning_workflow(
         
         # Success response
         file_size = os.path.getsize(output_path) / 1024  # KB
-        return f"✅ Morning workflow completed successfully!\n\n📊 Results:\n- Scraped matches saved to: {output_file}\n- File size: {file_size:.1f} KB\n- Data sent to n8n webhook: tennis-predictions\n\n📝 Scraper output:\n{result.stdout[:500]}{'...' if len(result.stdout) > 500 else ''}"
+        
+        if days_forward > 0 and days_forward <= 7:
+            if days_forward == 1:
+                webhook_type = "tennis-predictions"
+                response_msg = f"✅ Forward workflow completed successfully!\n\n📊 Results:\n- Tomorrow's matches saved to: {output_file}\n- File size: {file_size:.1f} KB\n- Data sent to n8n webhook: {webhook_type}"
+            else:
+                webhook_type = "tennis-predictions"
+                response_msg = f"✅ Forward workflow completed successfully!\n\n📊 Results:\n- Next {days_forward} days matches saved to: {output_file}\n- File size: {file_size:.1f} KB\n- Data sent to n8n webhook: {webhook_type}"
+        else:
+            response_msg = f"✅ Morning workflow completed successfully!\n\n📊 Results:\n- Scraped matches saved to: {output_file}\n- File size: {file_size:.1f} KB\n- Data sent to n8n webhook: tennis-predictions"
+        
+        return f"{response_msg}\n\n📝 Scraper output:\n{result.stdout[:500]}{'...' if len(result.stdout) > 500 else ''}"
         
     except subprocess.TimeoutExpired:
         return "❌ Workflow timeout after 5 minutes - scraper may be stuck"

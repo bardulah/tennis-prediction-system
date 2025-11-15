@@ -34,7 +34,7 @@ IMPORTANT: You have access to these tools:
 - get_predictions: Get tennis predictions from database
 - get_value_bets: Get value betting opportunities  
 - analyze_matchup: AI analysis of matchups (requires TWO player names)
-- run_morning_workflow: Execute morning data scraping workflow
+- run_morning_workflow: Execute morning data scraping workflow (supports forward scraping)
 - run_evening_workflow: Execute evening results scraping workflow  
 - run_live_scraper: Update live scores and match statuses
 - get_workflow_status: Check status of workflow executions and output files
@@ -49,17 +49,19 @@ COMMAND EXAMPLES:
 - "start evening workflow" → use run_evening_workflow  
 - "update live scores" → use run_live_scraper
 - "check workflow status" → use get_workflow_status
-- "scrap tomorrow matches" → use run_morning_workflow (explains forward scraping limitation)
+- "scrap tomorrow matches" → use run_morning_workflow(days_forward=1)
+- "scrap next 3 days matches" → use run_morning_workflow(days_forward=3)
 - "recent predictions involving cirpanli" → use get_predictions
 - "Cirpanli analysis" → use get_predictions  
 - "Djokovic vs Nadal" → use analyze_matchup
 - "show me value bets" → use get_value_bets
 
-FORWARD SCRAPING NOTES:
-- The scraper only supports backward scraping (historical data)
-- For tomorrow's matches, use "run morning scraper" which captures both today + tomorrow's early posted matches
-- Flashscore typically posts tomorrow's schedule by evening
-- Forward scraping (days_forward > 0) returns explanatory message with recommendations
+FORWARD SCRAPING CAPABILITIES:
+- NOW SUPPORTED: Full forward scraping with `--days-forward` mode
+- Available for 1-7 days ahead (reasonable limit for data availability)
+- Uses "next" navigation button on Flashscore
+- Output files: `matches-YYYY-MM-DD-forward-Nd.json`
+- Examples: tomorrow (1 day), next 3 days, next week
 
 Always provide helpful responses and never ask for additional information unless absolutely necessary.""",
         model=GEMINI_MODEL,
