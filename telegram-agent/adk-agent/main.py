@@ -40,9 +40,10 @@ analysis_agent = create_analysis_agent()
 # Create the dispatcher agent
 dispatcher_agent = create_dispatcher_agent(prediction_agent, analysis_agent)
 
-# Use DatabaseSessionService for persistent memory across restarts
-from database_session_service import create_database_session_service
-session_service = create_database_session_service()
+# Use InMemorySessionService for now to test basic functionality
+from google.adk.sessions import InMemorySessionService
+session_service = InMemorySessionService()
+print("Using InMemorySessionService for testing")
 
 # Create the Runner for executing the agent
 runner = Runner(

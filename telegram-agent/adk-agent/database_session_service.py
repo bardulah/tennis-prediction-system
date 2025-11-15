@@ -180,14 +180,12 @@ class DatabaseSessionService(BaseSessionService):
                 
                 result = cur.fetchone()
                 if result:
-                    # Return data in ADK expected format with camelCase field names
+                    # Return data in ADK expected format with ONLY required fields
                     return {
                         "id": session_id,
                         "appName": app_name,
                         "userId": user_id,
-                        "state": result[0] or {},
-                        "metadata": result[1] or {},
-                        # Note: ADK expects only these core fields, exclude extra database fields
+                        # Note: ADK rejects extra fields like metadata, state, etc.
                     }
                 return None
                 
