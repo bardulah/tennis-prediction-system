@@ -2,13 +2,15 @@
 
 An AI-powered Telegram bot that lets you casually chat with an agent to query tennis predictions, analyze matchups, and get insights from your prediction database.
 
+**Status**: ✅ Production Ready - Fully Tested & Deployed
+
 ## Features
 
 ✨ **Natural Language Queries**
 - "Give me all predictions with action 'bet' and odds >1.5 for today"
 - "Show me value bets"
-- "What tournaments have the best accuracy?"
-- "Analyze Djokovic vs Alcaraz matchup"
+- "What are the best value bets today?"
+- "Get predictions with at least 80% confidence"
 
 🔍 **Database Tools**
 - Get predictions with flexible filters (action, odds, confidence, date, tournament, surface)
@@ -25,6 +27,12 @@ An AI-powered Telegram bot that lets you casually chat with an agent to query te
 - Shows match status (not started, live, completed)
 - Displays live scores
 - Shows actual winners and prediction correctness
+
+🚀 **Agentic Architecture**
+- Claude Sonnet 4 (latest model) processes user intent
+- Automatically selects and executes appropriate tools
+- Handles multi-step interactions
+- Generates natural conversational responses
 
 ## Quick Start
 
@@ -225,11 +233,14 @@ Telegram Response
 | Variable | Required | Description |
 |----------|----------|-------------|
 | TELEGRAM_BOT_TOKEN | Yes | Telegram bot token from BotFather |
-| DATABASE_URL | Yes | PostgreSQL connection string |
+| DATABASE_URL | Yes | PostgreSQL connection string (Neon) |
 | ANTHROPIC_API_KEY | Yes | Claude API key |
-| PERPLEXITY_API_KEY | No | For web-search-based analysis |
-| GOOGLE_API_KEY | No | For Gemini LLM analysis |
+| PERPLEXITY_API_KEY | Yes | For web-search-based matchup analysis |
+| GOOGLE_API_KEY | No | For Gemini LLM analysis (alternative) |
 | NODE_ENV | No | 'production' or 'development' |
+| PORT | No | Server port (default: 3004) |
+| WEBHOOK_URL | No | Webhook URL for webhook mode (e.g., https://telegram.curak.xyz/webhook) |
+| TELEGRAM_CHAT_ID | No | Your chat ID for testing |
 
 ## Security Notes
 
