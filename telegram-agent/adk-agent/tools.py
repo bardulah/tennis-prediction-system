@@ -545,7 +545,8 @@ def get_value_bets(
 def run_morning_workflow(
     mode: str = "--today",
     filter_mode: str = "--strip-scores",
-    days_back: Optional[int] = None
+    days_back: Optional[int] = None,
+    days_forward: int = 0
 ) -> str:
     """
     Run the morning tennis data scraper workflow.
@@ -557,6 +558,10 @@ def run_morning_workflow(
         mode: Scraping mode - '--today', '--single-day N', or '--days-back N'
         filter_mode: Data filter - '--all', '--pending', '--finished', or '--strip-scores'  
         days_back: Number of days back for '--days-back' mode (optional)
+        days_forward: Number of days forward to scrape (limited by scraper capabilities)
+    Note:
+        The underlying scraper only supports backward scraping. For tomorrow's matches,
+        use mode='--today' as Flashscore typically posts tomorrow's schedule by evening.
     """
     import subprocess
     import os
@@ -569,6 +574,23 @@ def run_morning_workflow(
         # Validate script exists
         if not os.path.exists(script_path):
             return f"❌ Scraper script not found at {script_path}"
+        
+        # Handle forward scraping limitation
+        if days_forward > 0:
+            if days_forward == 1:
+                return f"📅 **Tomorrow's Matches**\n\n" \
+                       f"⚠️ **Forward scraping not supported by the underlying scraper.**\n\n" \
+                       f"**Alternative approach:**\n" \
+                       f"• Use `--today` mode to get today's + tomorrow's early posted matches\n" \
+                       f"• Flashscore typically posts tomorrow's schedule by evening\n" \
+                       f"• Run evening workflow to capture completed today's matches\n\n" \
+                       f"**Recommended:**\n" \
+                       f"• Morning: Use `run_morning_workflow()` for current + early tomorrow\n" \
+                       f"• Evening: Use `run_evening_workflow()` for yesterday's results\n" \
+                       f"• Status: Use `get_workflow_status()` to monitor data availability"
+            else:
+                return f"❌ Forward scraping {days_forward} days not supported. " \
+                       f"Maximum forward look: 1 day (tomorrow) via `--today` mode."
         
         # Build command
         cmd = ["node", script_path]
@@ -619,10 +641,11 @@ def run_morning_workflow(
         webhook_url = "http://193.24.209.9:5678/webhook/tennis-predictions"
         
         with open(output_path, 'rb') as f:
+            file_data = f.read()
             webhook_result = subprocess.run(
                 ["curl", "-X", "POST", "-H", "Content-Type: application/json", 
                  "--data-binary", "@-", webhook_url],
-                input=f.read(),
+                input=file_data,
                 capture_output=True,
                 text=True,
                 timeout=60  # 1 minute timeout for webhook
@@ -703,10 +726,11 @@ def run_evening_workflow(
         webhook_url = "http://193.24.209.9:5678/webhook/tennis-results"
         
         with open(output_path, 'rb') as f:
+            file_data = f.read()
             webhook_result = subprocess.run(
                 ["curl", "-X", "POST", "-H", "Content-Type: application/json", 
                  "--data-binary", "@-", webhook_url],
-                input=f.read(),
+                input=file_data,
                 capture_output=True,
                 text=True,
                 timeout=60  # 1 minute timeout for webhook
