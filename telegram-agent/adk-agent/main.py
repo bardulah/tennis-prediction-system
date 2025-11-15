@@ -82,7 +82,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Initialize conversation history if session is new
         conversation_history = []
         if session_data:
-            conversation_history = session_data.get("events", [])
+            conversation_history = session_data.events or []
         else:
             # Create new session if it doesn't exist
             await session_service.create_session(
