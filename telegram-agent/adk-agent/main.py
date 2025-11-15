@@ -126,14 +126,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             }
         ]
         
-        # Update the session with conversation history and increment conversation count
-        await session_service.update_session(
-            app_name="agents",
-            user_id=user_id,
-            session_id=session_id,
-            events=new_events,
-            add_conversation=True
-        )
+        # TEMPORARY: Skip event logging to get bot working
+        # TODO: Implement proper event persistence
+        print("Skipping event logging for now - bot operational")
         
         print(f"[{user_id}] Agent: {final_response}")
         await update.message.reply_text(final_response, parse_mode="Markdown")
