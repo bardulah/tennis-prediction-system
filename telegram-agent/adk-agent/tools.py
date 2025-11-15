@@ -355,7 +355,7 @@ def get_predictions(
 
         formatted_predictions = []
         for p in predictions:
-            predicted_odds = float(p[7]) if p[5] == p[1] else float(p[8]) # odds_player1 or odds_player2
+            predicted_odds = float(p[6]) if p[5] == p[1] else float(p[7]) # odds_player1 or odds_player2
             if min_odds is not None and predicted_odds < min_odds:
                 continue
 
@@ -365,8 +365,8 @@ def get_predictions(
                 "tournament": p[3],
                 "surface": p[4],
                 "prediction": f"{p[5]} @ {predicted_odds:.2f}",
-                "confidence": f"{p[9]}%",
-                "action": p[10],
+                "confidence": f"{p[8]}%",
+                "action": p[9],
                 "value_bet": "✓ Value Bet" if p[11] else "",
                 "status": p[13] or "not started",
                 "result": f"Winner: {p[15]}" if p[15] else "",
@@ -509,7 +509,7 @@ def get_value_bets(
 
         output = f"*Value Bets for {date or 'Today'}*\n\n"
         for idx, p in enumerate(value_bets):
-            predicted_odds = float(p[6]) if p[4] == p[1] else float(p[7]) # odds_player1 or odds_player2
+            predicted_odds = float(p[5]) if p[4] == p[1] else float(p[6]) # odds_player1 or odds_player2
             output += f"{idx + 1}. *{p[1]} vs {p[2]}*\n"
             output += f"   {p[3]}\n"
             output += f"   {p[4]} @ {predicted_odds:.2f} ({p[7]}% confidence)\n\n"
