@@ -541,10 +541,293 @@ def get_value_bets(
             cur.close()
             conn.close()
 
+
+def run_morning_workflow(
+    mode: str = "--today",
+    filter_mode: str = "--strip-scores",
+    days_back: Optional[int] = None
+) -> str:
+    """
+    Run the morning tennis data scraper workflow.
+    
+    This function executes the JavaScript scraper to collect today's matches
+    and sends the results to the n8n webhook for predictions processing.
+    
+    Args:
+        mode: Scraping mode - '--today', '--single-day N', or '--days-back N'
+        filter_mode: Data filter - '--all', '--pending', '--finished', or '--strip-scores'  
+        days_back: Number of days back for '--days-back' mode (optional)
+    """
+    import subprocess
+    import os
+    from datetime import datetime
+    
+    try:
+        root_dir = "/opt/tennis-scraper"
+        script_path = os.path.join(root_dir, "scrape-with-date.js")
+        
+        # Validate script exists
+        if not os.path.exists(script_path):
+            return f"❌ Scraper script not found at {script_path}"
+        
+        # Build command
+        cmd = ["node", script_path]
+        
+        # Add mode
+        if mode == "--days-back" and days_back:
+            cmd.extend(["--days-back", str(days_back)])
+        elif mode == "--single-day" and days_back:
+            cmd.extend(["--single-day", str(days_back)])
+        else:
+            cmd.append("--today")
+        
+        # Add filter mode
+        cmd.append(filter_mode)
+        
+        # Set working directory
+        os.chdir(root_dir)
+        
+        print(f"🔄 Running morning workflow: {' '.join(cmd)}")
+        
+        # Execute scraper with timeout
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 minute timeout
+            cwd=root_dir
+        )
+        
+        if result.returncode != 0:
+            return f"❌ Scraper failed with return code {result.returncode}\nError: {result.stderr}"
+        
+        # Determine output file based on mode
+        if mode == "--today":
+            output_file = f"matches-{datetime.now().strftime('%Y-%m-%d')}-strip-scores.json"
+        elif mode == "--single-day" and days_back:
+            target_date = datetime.now().replace(day=max(1, datetime.now().day - days_back))
+            output_file = f"matches-{target_date.strftime('%Y-%m-%d')}-finished.json"
+        else:
+            output_file = f"matches-{datetime.now().strftime('%Y-%m-%d')}-strip-scores.json"
+        
+        output_path = os.path.join(root_dir, output_file)
+        
+        if not os.path.exists(output_path):
+            return f"❌ Expected output file '{output_file}' was not created"
+        
+        # Send to n8n webhook
+        webhook_url = "http://193.24.209.9:5678/webhook/tennis-predictions"
+        
+        with open(output_path, 'rb') as f:
+            webhook_result = subprocess.run(
+                ["curl", "-X", "POST", "-H", "Content-Type: application/json", 
+                 "--data-binary", "@-", webhook_url],
+                input=f.read(),
+                capture_output=True,
+                text=True,
+                timeout=60  # 1 minute timeout for webhook
+            )
+        
+        if webhook_result.returncode != 0:
+            return f"⚠️ Scraper completed but webhook failed\nOutput: {result.stdout}\nWebhook Error: {webhook_result.stderr}"
+        
+        # Success response
+        file_size = os.path.getsize(output_path) / 1024  # KB
+        return f"✅ Morning workflow completed successfully!\n\n📊 Results:\n- Scraped matches saved to: {output_file}\n- File size: {file_size:.1f} KB\n- Data sent to n8n webhook: tennis-predictions\n\n📝 Scraper output:\n{result.stdout[:500]}{'...' if len(result.stdout) > 500 else ''}"
+        
+    except subprocess.TimeoutExpired:
+        return "❌ Workflow timeout after 5 minutes - scraper may be stuck"
+    except Exception as e:
+        return f"❌ Workflow failed: {str(e)}"
+
+
+def run_evening_workflow(
+    days_back: int = 1,
+    mode: str = "--single-day"
+) -> str:
+    """
+    Run the evening tennis data scraper workflow.
+    
+    This function executes the JavaScript scraper to collect yesterday's matches
+    with results and sends the data to the n8n webhook for evening processing.
+    
+    Args:
+        days_back: Days back from today to scrape (default: 1 for yesterday)
+        mode: Scraping mode - '--single-day' or '--days-back'
+    """
+    import subprocess
+    import os
+    from datetime import datetime, timedelta
+    
+    try:
+        root_dir = "/opt/tennis-scraper"
+        script_path = os.path.join(root_dir, "scrape-with-date.js")
+        
+        # Validate script exists
+        if not os.path.exists(script_path):
+            return f"❌ Scraper script not found at {script_path}"
+        
+        # Calculate target date
+        target_date = datetime.now() - timedelta(days=days_back)
+        output_file = f"matches-{target_date.strftime('%Y-%m-%d')}-finished.json"
+        
+        # Build command
+        if mode == "--days-back":
+            cmd = ["node", script_path, "--days-back", str(days_back), "--finished"]
+        else:
+            cmd = ["node", script_path, "--single-day", str(days_back), "--finished"]
+        
+        # Set working directory
+        os.chdir(root_dir)
+        
+        print(f"🔄 Running evening workflow: {' '.join(cmd)}")
+        
+        # Execute scraper with timeout
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 minute timeout
+            cwd=root_dir
+        )
+        
+        if result.returncode != 0:
+            return f"❌ Scraper failed with return code {result.returncode}\nError: {result.stderr}"
+        
+        output_path = os.path.join(root_dir, output_file)
+        
+        if not os.path.exists(output_path):
+            return f"❌ Expected output file '{output_file}' was not created"
+        
+        # Send to n8n webhook
+        webhook_url = "http://193.24.209.9:5678/webhook/tennis-results"
+        
+        with open(output_path, 'rb') as f:
+            webhook_result = subprocess.run(
+                ["curl", "-X", "POST", "-H", "Content-Type: application/json", 
+                 "--data-binary", "@-", webhook_url],
+                input=f.read(),
+                capture_output=True,
+                text=True,
+                timeout=60  # 1 minute timeout for webhook
+            )
+        
+        if webhook_result.returncode != 0:
+            return f"⚠️ Scraper completed but webhook failed\nOutput: {result.stdout}\nWebhook Error: {webhook_result.stderr}"
+        
+        # Success response
+        file_size = os.path.getsize(output_path) / 1024  # KB
+        return f"✅ Evening workflow completed successfully!\n\n📊 Results:\n- Target date: {target_date.strftime('%Y-%m-%d')}\n- Output file: {output_file}\n- File size: {file_size:.1f} KB\n- Data sent to n8n webhook: tennis-results\n\n📝 Scraper output:\n{result.stdout[:500]}{'...' if len(result.stdout) > 500 else ''}"
+        
+    except subprocess.TimeoutExpired:
+        return "❌ Workflow timeout after 5 minutes - scraper may be stuck"
+    except Exception as e:
+        return f"❌ Workflow failed: {str(e)}"
+
+
+def run_live_scraper() -> str:
+    """
+    Run the live tennis scores scraper.
+    
+    This function executes the live scores scraper to update ongoing match
+    statuses and scores in the database.
+    """
+    import subprocess
+    import os
+    
+    try:
+        root_dir = "/opt/tennis-scraper"
+        script_path = os.path.join(root_dir, "scrape-live-scores.js")
+        
+        # Validate script exists
+        if not os.path.exists(script_path):
+            return f"❌ Live scraper script not found at {script_path}"
+        
+        # Set working directory and execute
+        os.chdir(root_dir)
+        
+        print(f"🔄 Running live scraper: node {script_path}")
+        
+        result = subprocess.run(
+            ["node", script_path],
+            capture_output=True,
+            text=True,
+            timeout=180,  # 3 minute timeout for live scraper
+            cwd=root_dir
+        )
+        
+        if result.returncode != 0:
+            return f"❌ Live scraper failed with return code {result.returncode}\nError: {result.stderr}"
+        
+        return f"✅ Live scraper completed successfully!\n\n📝 Output:\n{result.stdout[:1000]}{'...' if len(result.stdout) > 1000 else ''}"
+        
+    except subprocess.TimeoutExpired:
+        return "❌ Live scraper timeout after 3 minutes"
+    except Exception as e:
+        return f"❌ Live scraper failed: {str(e)}"
+
+
+def get_workflow_status() -> str:
+    """
+    Check the status of recent workflow executions and available output files.
+    """
+    import os
+    from datetime import datetime, timedelta
+    
+    try:
+        root_dir = "/opt/tennis-scraper"
+        
+        # Check for recent output files
+        status_info = "📊 Workflow Status Report\n\n"
+        
+        # Check morning files (strip-scores)
+        today = datetime.now().strftime('%Y-%m-%d')
+        morning_file = f"matches-{today}-strip-scores.json"
+        morning_path = os.path.join(root_dir, morning_file)
+        
+        if os.path.exists(morning_path):
+            file_time = datetime.fromtimestamp(os.path.getmtime(morning_path))
+            file_size = os.path.getsize(morning_path) / 1024
+            status_info += f"✅ Morning data: {morning_file}\n"
+            status_info += f"   Modified: {file_time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            status_info += f"   Size: {file_size:.1f} KB\n\n"
+        else:
+            status_info += f"❌ Morning data: {morning_file} (not found)\n\n"
+        
+        # Check evening files (finished)
+        for days_back in [1, 2, 3]:  # Check last 3 days
+            target_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
+            evening_file = f"matches-{target_date}-finished.json"
+            evening_path = os.path.join(root_dir, evening_file)
+            
+            if os.path.exists(evening_path):
+                file_time = datetime.fromtimestamp(os.path.getmtime(evening_path))
+                file_size = os.path.getsize(evening_path) / 1024
+                status_info += f"✅ Evening data: {evening_file}\n"
+                status_info += f"   Modified: {file_time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                status_info += f"   Size: {file_size:.1f} KB\n\n"
+                break
+        
+        # Check log directory
+        log_dir = os.path.join(root_dir, "logs")
+        if os.path.exists(log_dir):
+            status_info += f"📁 Log directory: {log_dir}\n"
+        else:
+            status_info += f"📁 Log directory: Not found\n"
+        
+        return status_info
+        
+    except Exception as e:
+        return f"❌ Status check failed: {str(e)}"
+
 # Create FunctionTool instances - the ADK automatically extracts name and docstring from the function
 get_predictions_tool = FunctionTool(get_predictions)
 analyze_matchup_tool = FunctionTool(analyze_matchup)
 get_value_bets_tool = FunctionTool(get_value_bets)
+run_morning_workflow_tool = FunctionTool(run_morning_workflow)
+run_evening_workflow_tool = FunctionTool(run_evening_workflow)
+run_live_scraper_tool = FunctionTool(run_live_scraper)
+get_workflow_status_tool = FunctionTool(get_workflow_status)
 
 # Enhanced player matching tools
 get_player_matchups_tool = FunctionTool(get_player_matchups)

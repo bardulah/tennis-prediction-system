@@ -2,12 +2,24 @@
 
 from google.adk.agents import LlmAgent
 from google.adk.tools import FunctionTool
-from tools import get_predictions, analyze_matchup, get_value_bets
+from tools import (
+    get_predictions, 
+    analyze_matchup, 
+    get_value_bets, 
+    run_morning_workflow, 
+    run_evening_workflow, 
+    run_live_scraper, 
+    get_workflow_status
+)
 
 # Create FunctionTool instances
 get_predictions_tool = FunctionTool(get_predictions)
 analyze_matchup_tool = FunctionTool(analyze_matchup)
 get_value_bets_tool = FunctionTool(get_value_bets)
+run_morning_workflow_tool = FunctionTool(run_morning_workflow)
+run_evening_workflow_tool = FunctionTool(run_evening_workflow)
+run_live_scraper_tool = FunctionTool(run_live_scraper)
+get_workflow_status_tool = FunctionTool(get_workflow_status)
 
 GEMINI_MODEL = "gemini-2.5-flash"
 
@@ -16,19 +28,27 @@ def create_prediction_agent() -> LlmAgent:
     return LlmAgent(
         name="tennis_agent",
         description="A comprehensive tennis prediction and analysis agent.",
-        instruction="""You are a tennis prediction agent. You handle ALL tennis-related queries.
+        instruction="""You are a tennis prediction and workflow agent. You handle ALL tennis-related queries and system workflows.
 
 IMPORTANT: You have access to these tools:
 - get_predictions: Get tennis predictions from database
 - get_value_bets: Get value betting opportunities  
 - analyze_matchup: AI analysis of matchups (requires TWO player names)
+- run_morning_workflow: Execute morning data scraping workflow
+- run_evening_workflow: Execute evening results scraping workflow  
+- run_live_scraper: Update live scores and match statuses
+- get_workflow_status: Check status of workflow executions and output files
 
-CRITICAL INSTRUCTIONS:
+COMMAND HANDLING:
 - For ANY query mentioning a player name (like "Cirpanli", "Djokovic"), use get_predictions tool
 - Only use analyze_matchup if user explicitly mentions TWO players with "vs" or "versus"
-- Never ask for opponents - show available data or explain if not found
+- For workflow commands, use the appropriate workflow tools
 
-EXAMPLES:
+COMMAND EXAMPLES:
+- "run morning scraper" → use run_morning_workflow
+- "start evening workflow" → use run_evening_workflow  
+- "update live scores" → use run_live_scraper
+- "check workflow status" → use get_workflow_status
 - "recent predictions involving cirpanli" → use get_predictions
 - "Cirpanli analysis" → use get_predictions  
 - "Djokovic vs Nadal" → use analyze_matchup
@@ -36,7 +56,15 @@ EXAMPLES:
 
 Always provide helpful responses and never ask for additional information unless absolutely necessary.""",
         model=GEMINI_MODEL,
-        tools=[get_predictions_tool, get_value_bets_tool, analyze_matchup_tool],
+        tools=[
+            get_predictions_tool, 
+            get_value_bets_tool, 
+            analyze_matchup_tool,
+            run_morning_workflow_tool,
+            run_evening_workflow_tool,
+            run_live_scraper_tool,
+            get_workflow_status_tool
+        ],
     )
 
 def create_analysis_agent() -> LlmAgent:
