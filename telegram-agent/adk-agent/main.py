@@ -131,7 +131,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         print("Skipping event logging for now - bot operational")
         
         print(f"[{user_id}] Agent: {final_response}")
-        await update.message.reply_text(final_response, parse_mode="Markdown")
+        # Use plain text to avoid markdown parsing issues
+        await update.message.reply_text(final_response)
 
     except Exception as e:
         print(f"Error processing message: {e}")

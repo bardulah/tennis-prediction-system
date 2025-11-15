@@ -373,6 +373,23 @@ def get_predictions(
             })
 
         if not formatted_predictions:
+            if min_odds and min_odds >= 2.0:
+                # For high odds requests, get predictions without the strict filter
+                cur.execute(query.replace("AND p.confidence_score >= %s", "").replace("AND p.recommended_action = %s", "").replace("AND p.tournament ILIKE %s", "").replace("AND p.surface = %s", ""), [date, limit])
+                fallback_predictions = cur.fetchall()
+                
+                if not fallback_predictions:
+                    return f"No predictions found for {date or 'today'}."
+                
+                fallback_output = f"Note: Only found {len(fallback_predictions)} predictions (no high odds available). Here are all predictions:\n\n"
+                for idx, p in enumerate(fallback_predictions[:limit]):
+                    predicted_odds = float(p[6]) if p[5] == p[1] else float(p[7])
+                    fallback_output += f"{idx + 1}. {p[1]} vs {p[2]}\n"
+                    fallback_output += f"   {p[3]} • {p[4]}\n"
+                    fallback_output += f"   {p[5]} @ {predicted_odds:.2f} ({p[8]}% confidence)\n"
+                    fallback_output += f"   Action: {p[9]}\n\n"
+                
+                return fallback_output
             return "No predictions found matching your criteria."
 
         output = f"Found {len(formatted_predictions)} predictions:\n\n"
